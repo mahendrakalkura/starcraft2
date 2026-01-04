@@ -1,5 +1,8 @@
 # StarCraft II Replay Analyzer
 
+![SPDX](https://img.shields.io/badge/SPDX-MIT-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 Go-based parser and analyzer for StarCraft II replay files (.SC2Replay). Extracts comprehensive game data and stores it in PostgreSQL for analysis.
 
 ## Features
