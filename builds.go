@@ -14,16 +14,18 @@ import (
 	"github.com/spf13/cast"
 )
 
-func buildColor(color [4]byte) string { // nolint
-	return fmt.Sprintf("#%02X%02X%02X%02X", color[0], color[1], color[2], color[3])
+func buildColor(color [4]byte) (string, error) { // nolint
+	return fmt.Sprintf("#%02X%02X%02X%02X", color[0], color[1], color[2], color[3]), nil
 }
 
-func buildFiles(paths []string) []string {
+func buildFiles(paths []string) ([]string, error) {
 	items := []Item{}
 
 	for _, path := range paths {
 		err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-			check(err)
+			if err != nil {
+				return fmt.Errorf("filepath.Walk(): %w", err)
+			}
 
 			if !strings.HasSuffix(path, ".SC2Replay") {
 				return nil
@@ -34,7 +36,9 @@ func buildFiles(paths []string) []string {
 			return nil
 		})
 
-		check(err)
+		if err != nil {
+			return nil, fmt.Errorf("filepath.Walk(): %w", err)
+		}
 	}
 
 	sort.Slice(items, func(a int, z int) bool {
@@ -46,19 +50,39 @@ func buildFiles(paths []string) []string {
 		files[key] = value.Path
 	}
 
-	return files
+	return files, nil
 }
 
-func buildGame(file string, r *rep.Rep) Game {
-	messages := buildMessages(r)
+func buildGame(file string, r *rep.Rep) (Game, error) {
+	messages, err := buildMessages(r)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildMessages(): %w", err)
+	}
 
-	stats := buildStats(r)
+	stats, err := buildStats(r)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildStats(): %w", err)
+	}
 
-	units := buildUnits(r)
+	units, err := buildUnits(r)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildUnits(): %w", err)
+	}
 
-	players := buildPlayers(r, messages, stats, units)
+	players, err := buildPlayers(r, messages, stats, units)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildPlayers(): %w", err)
+	}
 
-	teams := buildTeams(players)
+	teams, err := buildTeams(players)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildTeams(): %w", err)
+	}
+
+	gameType, err := buildType(r)
+	if err != nil {
+		return Game{}, fmt.Errorf("buildType(): %w", err)
+	}
 
 	game := Game{
 		File:      file,
@@ -66,14 +90,14 @@ func buildGame(file string, r *rep.Rep) Game {
 		Map:       r.Metadata.Title(),
 		Mode:      r.AttrEvts.GameMode().String(),
 		Timestamp: pgtype.Timestamp{Time: r.Details.TimeUTC(), Valid: true},
-		Type:      buildType(r),
+		Type:      gameType,
 		Teams:     teams,
 	}
 
-	return game
+	return game, nil
 }
 
-func buildMessages(r *rep.Rep) []*Message {
+func buildMessages(r *rep.Rep) ([]*Message, error) {
 	messages := []*Message{}
 
 	for _, message := range r.MessageEvts {
@@ -90,10 +114,10 @@ func buildMessages(r *rep.Rep) []*Message {
 		messages = append(messages, message)
 	}
 
-	return messages
+	return messages, nil
 }
 
-func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit) []*Player {
+func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit) ([]*Player, error) {
 	players := []*Player{}
 
 	detailsPlayerList := r.Details.Players()
@@ -120,7 +144,11 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 
 				player.Number = int64(key) + 1
 
-				player.Color = buildColor(dpl.Color)
+				color, err := buildColor(dpl.Color)
+				if err != nil {
+					return nil, fmt.Errorf("buildColor(): %w", err)
+				}
+				player.Color = color
 				player.Control = control.Name
 				player.MMR = iduid.MMR()
 				player.Name = dpl.Name
@@ -168,10 +196,10 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 
 	}
 
-	return players
+	return players, nil
 }
 
-func buildStats(r *rep.Rep) []*Stat {
+func buildStats(r *rep.Rep) ([]*Stat, error) {
 	stats := []*Stat{}
 
 	for _, event := range r.TrackerEvts.Evts {
@@ -236,10 +264,10 @@ func buildStats(r *rep.Rep) []*Stat {
 		stats = append(stats, stat)
 	}
 
-	return stats
+	return stats, nil
 }
 
-func buildTeams(players []*Player) []*Team {
+func buildTeams(players []*Player) ([]*Team, error) {
 	teams := []*Team{}
 
 	numbers := []int64{}
@@ -283,21 +311,21 @@ func buildTeams(players []*Player) []*Team {
 		}
 	}
 
-	return teams
+	return teams, nil
 }
 
-func buildType(r *rep.Rep) string {
+func buildType(r *rep.Rep) (string, error) {
 	v := r.AttrEvts.Value("scopes", "16", "2001")
 	if v == nil {
-		return ""
+		return "", nil
 	}
 
 	s := v.(s2prot.Struct)
 
-	return cast.ToString(s.Value("value"))
+	return cast.ToString(s.Value("value")), nil
 }
 
-func buildUnits(r *rep.Rep) []*Unit {
+func buildUnits(r *rep.Rep) ([]*Unit, error) {
 	units := []*Unit{}
 
 	names := map[string]string{}
@@ -359,5 +387,5 @@ func buildUnits(r *rep.Rep) []*Unit {
 		}
 	}
 
-	return units
+	return units, nil
 }

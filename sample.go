@@ -22,7 +22,8 @@ func sample() {
 
 	_ = os.WriteFile("r.json", []byte(dump(r)), 0o644)
 
-	game := buildGame(file, r)
+	game, err := buildGame(file, r)
+	check(err)
 
 	_ = os.WriteFile("game.json", []byte(dump(game)), 0o644)
 }

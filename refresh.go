@@ -7,7 +7,10 @@ import (
 )
 
 func refresh() {
-	files := buildFiles(paths)
+	files, err := buildFiles(paths)
+	if err != nil {
+		panic(err)
+	}
 
 	m := NewModel(len(files))
 
@@ -35,7 +38,7 @@ func refresh() {
 		}
 	}()
 
-	_, err := p.Run()
+	_, err = p.Run()
 	if err != nil {
 		panic(err)
 	}
