@@ -2,17 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 )
-
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
 
 func dump(i any) string { // nolint
 	mi, err := json.MarshalIndent(i, "", "    ")
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("json.MarshalIndent(): %w", err))
+	}
 
 	return string(mi)
 }

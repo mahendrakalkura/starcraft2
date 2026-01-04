@@ -10,7 +10,9 @@ import (
 
 func statistics() {
 	statistics, err := mq.Statistics(context.Background())
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("mq.Statistics(): %w", err))
+	}
 
 	t := table.NewWriter()
 

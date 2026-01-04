@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -15,7 +16,9 @@ func sample() {
 	log.SetOutput(io.Discard)
 
 	r, err := rep.NewFromFile(file)
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("rep.NewFromFile(): %w", err))
+	}
 	_ = r.Close()
 
 	log.SetOutput(os.Stderr)
@@ -23,7 +26,9 @@ func sample() {
 	_ = os.WriteFile("r.json", []byte(dump(r)), 0o644)
 
 	game, err := buildGame(file, r)
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("buildGame(): %w", err))
+	}
 
 	_ = os.WriteFile("game.json", []byte(dump(game)), 0o644)
 }
