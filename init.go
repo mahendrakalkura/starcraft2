@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"main/models"
@@ -17,11 +18,15 @@ var (
 
 func init() {
 	err := godotenv.Load()
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("godotenv.Load(): %w", err))
+	}
 
 	ctx := context.Background()
 	pp, err = pgxpool.New(ctx, os.Getenv("POSTGRES"))
-	check(err)
+	if err != nil {
+		panic(fmt.Errorf("pgxpool.New(): %w", err))
+	}
 
 	mq = models.New(pp)
 }
