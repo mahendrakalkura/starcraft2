@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,11 +17,13 @@ func refresh() {
 
 	p := tea.NewProgram(m)
 
+	ctx := context.Background()
+
 	go func() {
 		wg := sync.WaitGroup{}
 		for w := range 12 {
 			wg.Go(func() {
-				worker(&m, w+1)
+				worker(ctx, &m, w+1)
 			})
 		}
 		wg.Wait()

@@ -7,9 +7,7 @@ import (
 	"main/models"
 )
 
-func upsert(game Game) error {
-	ctx := context.Background()
-
+func upsert(ctx context.Context, game Game) error {
 	giop := models.GamesInsertOneParams{
 		Duration:  game.Duration,
 		File:      game.File,
