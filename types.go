@@ -104,7 +104,7 @@ func (m Model) View1() string {
 
 func (m Model) View2() string {
 	eta := ""
-	if m.Progress.Completed > 0 {
+	if m.Progress.Completed > 0 && m.Progress.Total > 0 {
 		since := time.Since(m.Progress.Time)
 		frequency := float64(m.Progress.Completed) / since.Seconds()
 		if frequency > 0 {
@@ -126,7 +126,12 @@ func (m Model) View2() string {
 	w.AppendRow(table.Row{"Completed", humanize.Comma(int64(m.Progress.Completed))})
 	w.AppendRow(table.Row{"Remaining", humanize.Comma(int64(m.Progress.Remaining))})
 	w.AppendSeparator()
-	w.AppendRow(table.Row{"Percentage", fmt.Sprintf("%d%%", m.Progress.Completed*100/m.Progress.Total)})
+
+	percentage := 0
+	if m.Progress.Total > 0 {
+		percentage = m.Progress.Completed * 100 / m.Progress.Total
+	}
+	w.AppendRow(table.Row{"Percentage", fmt.Sprintf("%d%%", percentage)})
 	w.AppendRow(table.Row{"Elapsed", time.Since(m.Progress.Time).Round(time.Second).String()})
 	w.AppendRow(table.Row{"ETA", eta})
 

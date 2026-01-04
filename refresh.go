@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -17,6 +18,14 @@ func refresh(ctx context.Context, application *Application) {
 	files, err := buildFiles(application.Settings.Replays)
 	if err != nil {
 		panic(err)
+	}
+
+	if len(files) == 0 {
+		fmt.Println("No replay files found in configured paths:")
+		for _, path := range application.Settings.Replays {
+			fmt.Printf("  - %s\n", path)
+		}
+		return
 	}
 
 	m := NewModel(len(files))
