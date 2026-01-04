@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 )
 
-func checkErr(err error) {
+func check(err error) {
 	if err != nil {
 		panic(err)
 	}
 }
 
-func dump(i interface{}) string { // nolint
+func dump(i any) string { // nolint
 	mi, err := json.MarshalIndent(i, "", "    ")
-	checkErr(err)
+	check(err)
 
 	return string(mi)
 }
 
-func unused(i interface{}) {} // nolint
+func unused(i any) {} // nolint

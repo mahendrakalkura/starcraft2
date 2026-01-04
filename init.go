@@ -3,22 +3,25 @@ package main
 import (
 	"context"
 	"os"
-	"starcraft2/models"
+
+	"main/models"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
-var pp *pgxpool.Pool
-var mq *models.Queries
+var (
+	pp *pgxpool.Pool
+	mq *models.Queries
+)
 
 func init() {
 	err := godotenv.Load()
-	checkErr(err)
+	check(err)
 
 	ctx := context.Background()
 	pp, err = pgxpool.New(ctx, os.Getenv("POSTGRES"))
-	checkErr(err)
+	check(err)
 
 	mq = models.New(pp)
 }

@@ -10,7 +10,7 @@ import (
 
 func statistics() {
 	statistics, err := mq.Statistics(context.Background())
-	checkErr(err)
+	check(err)
 
 	t := table.NewWriter()
 

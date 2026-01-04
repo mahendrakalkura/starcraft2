@@ -15,7 +15,7 @@ func refresh() {
 
 	go func() {
 		wg := sync.WaitGroup{}
-		for w := 0; w < 12; w++ {
+		for w := range 12 {
 			wg.Add(1)
 			go worker(&m, &wg, w+1)
 		}

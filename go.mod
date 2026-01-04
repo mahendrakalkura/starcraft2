@@ -1,4 +1,4 @@
-module starcraft2
+module main
 
 go 1.23.4
 

@@ -19,13 +19,15 @@ func worker(m *Model, wg *sync.WaitGroup, number int) {
 		m.Channels.Output <- Channel{File: file, Worker: number}
 
 		err := mq.GamesDeleteOne(context.Background(), file)
-		checkErr(err)
+		check(err)
 
 		log.SetOutput(io.Discard)
 
 		r, err := rep.NewFromFile(file)
-		checkErr(err)
-		r.Close()
+		if err != nil {
+			continue
+		}
+		_ = r.Close()
 
 		log.SetOutput(os.Stderr)
 

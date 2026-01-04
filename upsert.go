@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"os"
-	"starcraft2/models"
+
+	"main/models"
 )
 
 func upsert(game Game) {
@@ -18,7 +19,7 @@ func upsert(game Game) {
 		Type:      game.Type,
 	}
 	gameID, err := mq.GamesInsertOne(ctx, giop)
-	checkErr(err)
+	check(err)
 
 	for _, team := range game.Teams {
 		tiop := models.TeamsInsertOneParams{
@@ -27,7 +28,7 @@ func upsert(game Game) {
 			Result: team.Result,
 		}
 		teamID, err := mq.TeamsInsertOne(ctx, tiop)
-		checkErr(err)
+		check(err)
 
 		for _, player := range team.Players {
 			siop := models.PlayersInsertOneParams{
@@ -43,10 +44,10 @@ func upsert(game Game) {
 			}
 			playerID, err := mq.PlayersInsertOne(ctx, siop)
 			if err != nil {
-				err = os.WriteFile("dump.json", []byte(dump(game)), 0644)
-				checkErr(err)
+				err = os.WriteFile("dump.json", []byte(dump(game)), 0o644)
+				check(err)
 			}
-			checkErr(err)
+			check(err)
 
 			mimps := []models.MessagesInsertManyParams{}
 			for _, message := range player.Messages {
@@ -60,9 +61,9 @@ func upsert(game Game) {
 			}
 			mim := mq.MessagesInsertMany(ctx, mimps)
 			mim.Exec(func(key int, err error) {
-				checkErr(err)
+				check(err)
 			})
-			mim.Close()
+			_ = mim.Close()
 
 			simps := []models.StatsInsertManyParams{}
 			for _, stat := range player.Stats {
@@ -113,9 +114,9 @@ func upsert(game Game) {
 			}
 			smi := mq.StatsInsertMany(ctx, simps)
 			smi.Exec(func(key int, err error) {
-				checkErr(err)
+				check(err)
 			})
-			smi.Close()
+			_ = smi.Close()
 
 			uimps := []models.UnitsInsertManyParams{}
 			for _, unit := range player.Units {
@@ -131,9 +132,9 @@ func upsert(game Game) {
 			}
 			umi := mq.UnitsInsertMany(ctx, uimps)
 			umi.Exec(func(key int, err error) {
-				checkErr(err)
+				check(err)
 			})
-			umi.Close()
+			_ = umi.Close()
 		}
 	}
 }

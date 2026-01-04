@@ -23,7 +23,7 @@ func buildFiles(paths []string) []string {
 
 	for _, path := range paths {
 		err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-			checkErr(err)
+			check(err)
 
 			if !strings.HasSuffix(path, ".SC2Replay") {
 				return nil
@@ -34,7 +34,7 @@ func buildFiles(paths []string) []string {
 			return nil
 		})
 
-		checkErr(err)
+		check(err)
 	}
 
 	sort.Slice(items, func(a int, z int) bool {
@@ -77,15 +77,15 @@ func buildMessages(r *rep.Rep) []*Message {
 	messages := []*Message{}
 
 	for _, message := range r.MessageEvts {
-		if message.EvtType.Name != "Chat" {
+		if message.Name != "Chat" {
 			continue
 		}
 
 		message := &Message{
-			Player:      message.Struct.Value("userid", "userId").(int64) + 1,
-			Time:        message.Struct.Value("loop").(int64),
-			RecipientID: message.Struct.Value("recipient").(int64),
-			String:      message.Struct.Value("string").(string),
+			Player:      message.Value("userid", "userId").(int64) + 1,
+			Time:        message.Value("loop").(int64),
+			RecipientID: message.Value("recipient").(int64),
+			String:      message.Value("string").(string),
 		}
 		messages = append(messages, message)
 	}
@@ -108,8 +108,8 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 
 		observe := value.Observe()
 
-		if control.Enum.Name == "Human" {
-			if observe.Enum.Name == "Participant" {
+		if control.Name == "Human" {
+			if observe.Name == "Participant" {
 				id := value.UserID()
 
 				iduid := initDataUserInitData[id]
@@ -121,10 +121,10 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 				player.Number = int64(key) + 1
 
 				player.Color = buildColor(dpl.Color)
-				player.Control = control.Enum.Name
+				player.Control = control.Name
 				player.MMR = iduid.MMR()
 				player.Name = dpl.Name
-				player.Observe = observe.Enum.Name
+				player.Observe = observe.Name
 
 				for _, v := range metadataPlayers {
 					if v.PlayerID() == player.Number {
@@ -161,7 +161,7 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 				playerID++
 			}
 		}
-		if control.Enum.Name == "Computer" {
+		if control.Name == "Computer" {
 			detailID++
 			playerID++
 		}
@@ -175,15 +175,14 @@ func buildStats(r *rep.Rep) []*Stat {
 	stats := []*Stat{}
 
 	for _, event := range r.TrackerEvts.Evts {
-		action := event.Struct.Value("evtTypeName").(string)
+		_ = event.Value("evtTypeName").(string)
 
-		playerID := event.Struct.Value("playerId")
+		playerID := event.Value("playerId")
 		if playerID == nil {
-			fmt.Println(action, playerID, dump(event.Struct))
 			continue
 		}
 
-		v := event.Struct.Value("stats")
+		v := event.Value("stats")
 		if v == nil {
 			continue
 		}
@@ -192,7 +191,7 @@ func buildStats(r *rep.Rep) []*Stat {
 
 		stat := &Stat{
 			Player:                           cast.ToInt64(playerID),
-			Time:                             cast.ToInt64(event.Struct.Value("loop")),
+			Time:                             cast.ToInt64(event.Value("loop")),
 			FoodMade:                         cast.ToInt64(numbers.Value("scoreValueFoodMade")),
 			FoodUsed:                         cast.ToInt64(numbers.Value("scoreValueFoodUsed")),
 			MineralsCollectionRate:           cast.ToInt64(numbers.Value("scoreValueMineralsCollectionRate")),
@@ -288,7 +287,7 @@ func buildTeams(players []*Player) []*Team {
 }
 
 func buildType(r *rep.Rep) string {
-	v := r.AttrEvts.Struct.Value("scopes", "16", "2001")
+	v := r.AttrEvts.Value("scopes", "16", "2001")
 	if v == nil {
 		return ""
 	}
@@ -304,56 +303,56 @@ func buildUnits(r *rep.Rep) []*Unit {
 	names := map[string]string{}
 
 	for _, event := range r.TrackerEvts.Evts {
-		action := event.Struct.Value("evtTypeName").(string)
+		action := event.Value("evtTypeName").(string)
 		if action != "UnitBorn" {
 			continue
 		}
 
-		unitTagIndex := event.Struct.Value("unitTagIndex").(int64)
-		unitTagRecycle := event.Struct.Value("unitTagRecycle").(int64)
-		unitTypeName := event.Struct.Value("unitTypeName").(string)
+		unitTagIndex := event.Value("unitTagIndex").(int64)
+		unitTagRecycle := event.Value("unitTagRecycle").(int64)
+		unitTypeName := event.Value("unitTypeName").(string)
 		names[fmt.Sprintf("%d_%d", unitTagIndex, unitTagRecycle)] = unitTypeName
 	}
 
 	for _, event := range r.TrackerEvts.Evts {
-		action := event.Struct.Value("evtTypeName").(string)
+		action := event.Value("evtTypeName").(string)
 
 		if action == "UnitBorn" {
-			controlPlayerID := event.Struct.Value("controlPlayerId")
+			controlPlayerID := event.Value("controlPlayerId")
 			if controlPlayerID == nil {
 				continue
 			}
 
 			unit := &Unit{
 				Player: controlPlayerID.(int64),
-				Time:   event.Struct.Value("loop").(int64),
+				Time:   event.Value("loop").(int64),
 				Action: action,
-				Name:   event.Struct.Value("unitTypeName").(string),
-				X:      event.Struct.Value("x").(int64),
-				Y:      event.Struct.Value("y").(int64),
+				Name:   event.Value("unitTypeName").(string),
+				X:      event.Value("x").(int64),
+				Y:      event.Value("y").(int64),
 			}
 
 			units = append(units, unit)
 		}
 
 		if action == "UnitDied" {
-			killerPlayerID := event.Struct.Value("killerPlayerId")
+			killerPlayerID := event.Value("killerPlayerId")
 			if killerPlayerID == nil {
 				continue
 			}
 
-			name, ok := names[fmt.Sprintf("%d_%d", event.Struct.Value("unitTagIndex").(int64), event.Struct.Value("unitTagRecycle").(int64))]
+			name, ok := names[fmt.Sprintf("%d_%d", event.Value("unitTagIndex").(int64), event.Value("unitTagRecycle").(int64))]
 			if !ok {
 				continue
 			}
 
 			unit := &Unit{
 				Player: killerPlayerID.(int64),
-				Time:   event.Struct.Value("loop").(int64),
+				Time:   event.Value("loop").(int64),
 				Action: action,
 				Name:   name,
-				X:      event.Struct.Value("x").(int64),
-				Y:      event.Struct.Value("y").(int64),
+				X:      event.Value("x").(int64),
+				Y:      event.Value("y").(int64),
 			}
 
 			units = append(units, unit)

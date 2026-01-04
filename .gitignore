@@ -1,6 +1,5 @@
 models
-tmp
 .env
 game.json
+main
 r.json
-starcraft2

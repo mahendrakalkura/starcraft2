@@ -1,0 +1,35 @@
+version: "2"
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - ineffassign
+    - misspell
+    - modernize
+    - staticcheck
+    - unused
+  settings:
+    gosec:
+      excludes:
+        - G301
+        - G306
+    govet:
+      enable:
+        - shadow
+formatters:
+  option: value
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+output:
+  option: value
+run:
+  tests: true
+  timeout: 5m
+severity:
+  option: value

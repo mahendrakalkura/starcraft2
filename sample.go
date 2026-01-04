@@ -15,14 +15,14 @@ func sample() {
 	log.SetOutput(io.Discard)
 
 	r, err := rep.NewFromFile(file)
-	checkErr(err)
-	r.Close()
+	check(err)
+	_ = r.Close()
 
 	log.SetOutput(os.Stderr)
 
-	_ = os.WriteFile("r.json", []byte(dump(r)), 0644)
+	_ = os.WriteFile("r.json", []byte(dump(r)), 0o644)
 
 	game := buildGame(file, r)
 
-	_ = os.WriteFile("game.json", []byte(dump(game)), 0644)
+	_ = os.WriteFile("game.json", []byte(dump(game)), 0o644)
 }
