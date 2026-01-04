@@ -1,6 +1,6 @@
 module main
 
-go 1.23.4
+go 1.25
 
 require (
 	github.com/charmbracelet/bubbletea v1.2.4

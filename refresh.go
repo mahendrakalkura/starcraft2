@@ -19,10 +19,13 @@ func refresh() {
 	go func() {
 		wg := sync.WaitGroup{}
 		for w := range 12 {
-			wg.Add(1)
-			go worker(&m, &wg, w+1)
+			wg.Go(func() {
+				worker(&m, w+1)
+			})
 		}
 		wg.Wait()
+		close(m.Channels.Input)
+		close(m.Channels.Output)
 	}()
 
 	go func() {
@@ -32,8 +35,7 @@ func refresh() {
 	}()
 
 	go func() {
-		for {
-			message := <-m.Channels.Output
+		for message := range m.Channels.Output {
 			p.Send(message)
 		}
 	}()

@@ -6,14 +6,11 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 
 	"github.com/icza/s2prot/rep"
 )
 
-func worker(m *Model, wg *sync.WaitGroup, number int) {
-	defer wg.Done()
-
+func worker(m *Model, number int) {
 	m.Channels.Output <- Channel{File: "", Worker: number}
 
 	for file := range m.Channels.Input {
