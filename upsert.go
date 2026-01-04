@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"os"
+	"fmt"
 
 	"main/models"
 )
 
-func upsert(game Game) {
+func upsert(game Game) error {
 	ctx := context.Background()
 
 	giop := models.GamesInsertOneParams{
@@ -19,7 +19,9 @@ func upsert(game Game) {
 		Type:      game.Type,
 	}
 	gameID, err := mq.GamesInsertOne(ctx, giop)
-	check(err)
+	if err != nil {
+		return fmt.Errorf("mq.GamesInsertOne(): %w", err)
+	}
 
 	for _, team := range game.Teams {
 		tiop := models.TeamsInsertOneParams{
@@ -28,7 +30,9 @@ func upsert(game Game) {
 			Result: team.Result,
 		}
 		teamID, err := mq.TeamsInsertOne(ctx, tiop)
-		check(err)
+		if err != nil {
+			return fmt.Errorf("mq.TeamsInsertOne(): %w", err)
+		}
 
 		for _, player := range team.Players {
 			siop := models.PlayersInsertOneParams{
@@ -44,10 +48,8 @@ func upsert(game Game) {
 			}
 			playerID, err := mq.PlayersInsertOne(ctx, siop)
 			if err != nil {
-				err = os.WriteFile("dump.json", []byte(dump(game)), 0o644)
-				check(err)
+				return fmt.Errorf("mq.PlayersInsertOne(): %w", err)
 			}
-			check(err)
 
 			mimps := []models.MessagesInsertManyParams{}
 			for _, message := range player.Messages {
@@ -60,10 +62,16 @@ func upsert(game Game) {
 				mimps = append(mimps, mimp)
 			}
 			mim := mq.MessagesInsertMany(ctx, mimps)
-			mim.Exec(func(key int, err error) {
-				check(err)
+			err = nil
+			mim.Exec(func(key int, e error) {
+				if e != nil && err == nil {
+					err = fmt.Errorf("mim.Exec(): %w", e)
+				}
 			})
 			_ = mim.Close()
+			if err != nil {
+				return err
+			}
 
 			simps := []models.StatsInsertManyParams{}
 			for _, stat := range player.Stats {
@@ -113,10 +121,16 @@ func upsert(game Game) {
 				simps = append(simps, simp)
 			}
 			smi := mq.StatsInsertMany(ctx, simps)
-			smi.Exec(func(key int, err error) {
-				check(err)
+			err = nil
+			smi.Exec(func(key int, e error) {
+				if e != nil && err == nil {
+					err = fmt.Errorf("smi.Exec(): %w", e)
+				}
 			})
 			_ = smi.Close()
+			if err != nil {
+				return err
+			}
 
 			uimps := []models.UnitsInsertManyParams{}
 			for _, unit := range player.Units {
@@ -131,10 +145,18 @@ func upsert(game Game) {
 				uimps = append(uimps, uimp)
 			}
 			umi := mq.UnitsInsertMany(ctx, uimps)
-			umi.Exec(func(key int, err error) {
-				check(err)
+			err = nil
+			umi.Exec(func(key int, e error) {
+				if e != nil && err == nil {
+					err = fmt.Errorf("umi.Exec(): %w", e)
+				}
 			})
 			_ = umi.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }

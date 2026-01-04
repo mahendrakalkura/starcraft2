@@ -34,7 +34,8 @@ func worker(m *Model, wg *sync.WaitGroup, number int) {
 		game, err := buildGame(file, r)
 		check(err)
 
-		upsert(game)
+		err = upsert(game)
+		check(err)
 
 		m.Channels.Output <- Channel{File: "", Worker: number}
 	}
