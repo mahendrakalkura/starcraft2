@@ -4,21 +4,25 @@ Go-based parser and analyzer for StarCraft II replay files (.SC2Replay). Extract
 
 ## Features
 
-- **Parallel Processing**: 12 concurrent workers for fast replay parsing
+- **Parallel Processing**: Configurable concurrent workers for fast replay parsing
+- **Environment-based Configuration**: All settings via .env file
+- **Graceful Shutdown**: Context-based cancellation with signal handling
+- **Atomic Transactions**: Database operations wrapped in transactions for consistency
 - **Comprehensive Data Extraction**:
   - Game metadata (map, mode, duration, timestamp)
   - Player statistics (MMR, APM, race, color, region)
   - Per-tick resource tracking (minerals, vespene, supply, army value)
   - Chat messages with timestamps
   - Unit births and deaths
-  - Team results
+  - Team results with player filtering
 - **Real-time TUI**: Bubble Tea progress display with ETA
 - **Type-safe Database**: sqlc-generated PostgreSQL operations
 - **Batch Operations**: Efficient multi-row inserts
+- **Dependency Injection**: Clean architecture with explicit dependencies
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.25+
 - PostgreSQL
 - StarCraft II replay files
 
@@ -38,34 +42,45 @@ go build
 
 ## Configuration
 
-### Database Setup
+### Environment Variables
+
+Create `.env` file in project root:
 
 ```bash
-# Copy sample environment file
 cp .env.sample .env
-
-# Edit .env with your PostgreSQL connection
-# Default: postgres://postgres:postgres@0.0.0.0:5432/starcraft2?sslmode=disable
 ```
 
-### Initialize Database
+Edit `.env` with your configuration:
+
+**DATABASE** (required)
+PostgreSQL connection string
+```
+DATABASE=postgres://postgres@localhost:5432/starcraft2
+```
+
+**REPLAYS** (required)
+Comma-separated replay directory paths. Use quotes if paths contain spaces.
+```
+REPLAYS="/home/user/StarCraft II/Replays,/mnt/replays"
+```
+
+**WORKERS** (optional)
+Number of concurrent worker goroutines. Defaults to number of CPUs.
+```
+WORKERS=12
+```
+
+**PLAYERS** (optional)
+Comma-separated player names for result determination in undecided games. Empty = all players.
+```
+PLAYERS=PlayerOne,PlayerTwo
+```
+
+### Database Setup
 
 ```bash
 # Create schema
 psql -h localhost -U postgres -d starcraft2 < sqlc/schema.sql
-
-# Or use the reset script
-./reset.sh
-```
-
-### Replay File Paths
-
-Edit `variables.go` to configure paths where replay files are located:
-
-```go
-var Paths = []string{
-    "/path/to/your/replays",
-}
 ```
 
 ## Usage
@@ -77,9 +92,9 @@ var Paths = []string{
 ```
 
 Processes all .SC2Replay files from configured paths:
-- Spawns 12 concurrent workers
+- Spawns configurable concurrent workers (WORKERS env var)
 - Displays real-time progress with TUI
-- Stores data in PostgreSQL
+- Stores data in PostgreSQL with atomic transactions
 
 ### Parse Single Replay (Sample)
 
@@ -119,28 +134,24 @@ Player stats include:
 
 ## Development
 
+### Build
+
+```bash
+make build
+```
+
+### Lint
+
+```bash
+make lint
+```
+
 ### Generate Database Code
 
+After modifying `sqlc/schema.sql` or `sqlc/queries.sql`:
+
 ```bash
-# After modifying sqlc/schema.sql or sqlc/queries.sql
 sqlc generate
-
-# Or use the script
-./sqlc.sh
-```
-
-### Live Reload
-
-```bash
-# Watches .go files and auto-rebuilds
-air
-```
-
-### Code Quality
-
-```bash
-# Run linter
-golangci-lint run
 ```
 
 ## Dependencies
@@ -153,20 +164,30 @@ golangci-lint run
 
 ## Architecture
 
+### Application Structure
+
+- **Dependency Injection**: Application struct holds all dependencies (DB pool, queries, settings)
+- **Environment Configuration**: Settings loaded from .env on startup
+- **Graceful Shutdown**: Signal handling with context cancellation
+- **Transaction Safety**: All database inserts wrapped in transactions for atomicity
+
 ### Data Flow
 
-1. **Discovery**: `buildFiles()` walks configured paths for .SC2Replay files
-2. **Distribution**: Files distributed to 12 worker goroutines via channel
-3. **Parsing**: Each worker uses `icza/s2prot` to parse replay binary format
-4. **Extraction**: `buildGame()` extracts all game entities and statistics
-5. **Storage**: `upsert()` stores data via sqlc-generated methods
-6. **Progress**: Bubble Tea TUI shows real-time worker status
+1. **Initialization**: `NewApplication()` loads config and creates DB connection
+2. **Discovery**: `buildFiles()` walks configured paths for .SC2Replay files
+3. **Distribution**: Files distributed to worker goroutines via channel
+4. **Parsing**: Each worker uses `icza/s2prot` to parse replay binary format
+5. **Extraction**: `buildGame()` extracts all game entities and statistics
+6. **Storage**: `upsert()` stores data via sqlc-generated methods in atomic transactions
+7. **Progress**: Bubble Tea TUI shows real-time worker status
+8. **Shutdown**: `Application.Close()` releases DB connection pool
 
 ### Concurrency Model
 
-- Main thread: File discovery + TUI rendering
-- 12 workers: Parallel replay parsing
-- Channel-based work distribution
+- Main thread: Application initialization + file discovery + TUI rendering
+- Configurable workers: Parallel replay parsing (default: CPU count)
+- Channel-based work distribution with WaitGroup synchronization
+- Context-based cancellation for graceful shutdown
 - Progress updates via Bubble Tea messages
 
 ## License
