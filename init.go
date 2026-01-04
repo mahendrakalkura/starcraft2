@@ -30,3 +30,9 @@ func init() {
 
 	mq = models.New(pp)
 }
+
+func cleanup() {
+	if pp != nil {
+		pp.Close()
+	}
+}
