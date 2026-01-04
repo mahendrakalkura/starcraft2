@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func refresh(application *Application) {
+func refresh(ctx context.Context, application *Application) {
 	files, err := buildFiles(application.Settings.Replays)
 	if err != nil {
 		panic(err)
@@ -16,8 +16,6 @@ func refresh(application *Application) {
 	m := NewModel(len(files))
 
 	p := tea.NewProgram(m)
-
-	ctx := context.Background()
 
 	go func() {
 		wg := sync.WaitGroup{}

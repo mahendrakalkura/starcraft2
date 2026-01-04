@@ -14,6 +14,13 @@ func worker(ctx context.Context, application *Application, m *Model, number int)
 	m.Channels.Output <- Channel{File: "", Worker: number}
 
 	for file := range m.Channels.Input {
+		select {
+		case <-ctx.Done():
+			m.Channels.Output <- Channel{File: "", Worker: number}
+			return
+		default:
+		}
+
 		m.Channels.Output <- Channel{File: file, Worker: number}
 
 		err := application.Queries.GamesDeleteOne(ctx, file)

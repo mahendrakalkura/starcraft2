@@ -17,13 +17,12 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	_ = ctx
 
 	action := flag.String("action", "", "Action: refresh or sample")
 	flag.Parse()
 
 	if *action == "refresh" {
-		refresh(application)
+		refresh(ctx, application)
 	}
 
 	if *action == "sample" {
@@ -31,6 +30,6 @@ func main() {
 	}
 
 	if *action == "statistics" {
-		statistics(application)
+		statistics(ctx, application)
 	}
 }

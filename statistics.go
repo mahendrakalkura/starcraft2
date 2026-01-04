@@ -8,8 +8,8 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-func statistics(application *Application) {
-	statistics, err := application.Queries.Statistics(context.Background())
+func statistics(ctx context.Context, application *Application) {
+	statistics, err := application.Queries.Statistics(ctx)
 	if err != nil {
 		panic(fmt.Errorf("application.Queries.Statistics(): %w", err))
 	}
