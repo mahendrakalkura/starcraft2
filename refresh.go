@@ -7,8 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func refresh() {
-	files, err := buildFiles(settings.Replays)
+func refresh(application *Application) {
+	files, err := buildFiles(application.Settings.Replays)
 	if err != nil {
 		panic(err)
 	}
@@ -21,9 +21,9 @@ func refresh() {
 
 	go func() {
 		wg := sync.WaitGroup{}
-		for w := range settings.Workers {
+		for w := range application.Settings.Workers {
 			wg.Go(func() {
-				worker(ctx, &m, w+1)
+				worker(ctx, application, &m, w+1)
 			})
 		}
 		wg.Wait()

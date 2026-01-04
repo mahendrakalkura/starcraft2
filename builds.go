@@ -54,7 +54,7 @@ func buildFiles(paths []string) ([]string, error) {
 	return files, nil
 }
 
-func buildGame(file string, r *rep.Rep) (Game, error) {
+func buildGame(settings *Settings, file string, r *rep.Rep) (Game, error) {
 	messages, err := buildMessages(r)
 	if err != nil {
 		return Game{}, fmt.Errorf("buildMessages(): %w", err)
@@ -75,7 +75,7 @@ func buildGame(file string, r *rep.Rep) (Game, error) {
 		return Game{}, fmt.Errorf("buildPlayers(): %w", err)
 	}
 
-	teams, err := buildTeams(players)
+	teams, err := buildTeams(settings, players)
 	if err != nil {
 		return Game{}, fmt.Errorf("buildTeams(): %w", err)
 	}
@@ -268,7 +268,7 @@ func buildStats(r *rep.Rep) ([]*Stat, error) {
 	return stats, nil
 }
 
-func buildTeams(players []*Player) ([]*Team, error) {
+func buildTeams(settings *Settings, players []*Player) ([]*Team, error) {
 	teams := []*Team{}
 
 	numbers := []int64{}
@@ -296,7 +296,7 @@ func buildTeams(players []*Player) ([]*Team, error) {
 		if teams[0].Result == "Undecided" && teams[1].Result == "Undecided" {
 			for team := range teams {
 				for _, player := range teams[team].Players {
-					if isPlayer(player.Name) {
+					if isPlayer(settings, player.Name) {
 						teams[team].Result = "Loss"
 						teams[1-team].Result = "Win"
 						break
@@ -391,6 +391,6 @@ func buildUnits(r *rep.Rep) ([]*Unit, error) {
 	return units, nil
 }
 
-func isPlayer(name string) bool {
+func isPlayer(settings *Settings, name string) bool {
 	return slices.Contains(settings.Players, name)
 }

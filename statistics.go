@@ -8,10 +8,10 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-func statistics() {
-	statistics, err := mq.Statistics(context.Background())
+func statistics(application *Application) {
+	statistics, err := application.Queries.Statistics(context.Background())
 	if err != nil {
-		panic(fmt.Errorf("mq.Statistics(): %w", err))
+		panic(fmt.Errorf("application.Queries.Statistics(): %w", err))
 	}
 
 	t := table.NewWriter()

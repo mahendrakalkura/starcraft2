@@ -9,7 +9,7 @@ import (
 	"github.com/icza/s2prot/rep"
 )
 
-func sample() {
+func sample(application *Application) {
 	file := "/home/mahendra/Windows/Documents and Settings/Name/Documents/StarCraft II/Accounts/395302547/2-S2-1-9209518/Replays/Multiplayer/Ashen Cradle (26).SC2Replay"
 
 	log.SetOutput(io.Discard)
@@ -24,7 +24,7 @@ func sample() {
 
 	_ = os.WriteFile("r.json", []byte(dump(r)), 0o644)
 
-	game, err := buildGame(file, r)
+	game, err := buildGame(application.Settings, file, r)
 	if err != nil {
 		panic(fmt.Errorf("buildGame(): %w", err))
 	}

@@ -10,13 +10,13 @@ import (
 	"github.com/icza/s2prot/rep"
 )
 
-func worker(ctx context.Context, m *Model, number int) {
+func worker(ctx context.Context, application *Application, m *Model, number int) {
 	m.Channels.Output <- Channel{File: "", Worker: number}
 
 	for file := range m.Channels.Input {
 		m.Channels.Output <- Channel{File: file, Worker: number}
 
-		err := mq.GamesDeleteOne(ctx, file)
+		err := application.Queries.GamesDeleteOne(ctx, file)
 		if err != nil {
 			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
 		}
@@ -33,14 +33,14 @@ func worker(ctx context.Context, m *Model, number int) {
 
 		log.SetOutput(os.Stderr)
 
-		game, err := buildGame(file, r)
+		game, err := buildGame(application.Settings, file, r)
 		if err != nil {
 			err = fmt.Errorf("buildGame(): %w", err)
 			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
 			continue
 		}
 
-		err = upsert(ctx, game)
+		err = upsert(ctx, application.DB, application.Queries, game)
 		if err != nil {
 			err = fmt.Errorf("upsert(): %w", err)
 			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}

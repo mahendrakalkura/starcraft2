@@ -5,18 +5,20 @@ import (
 	"fmt"
 
 	"main/models"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func upsert(ctx context.Context, game Game) error {
-	tx, err := pp.Begin(ctx)
+func upsert(ctx context.Context, pool *pgxpool.Pool, queries *models.Queries, game Game) error {
+	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("pp.Begin(): %w", err)
+		return fmt.Errorf("pool.Begin(): %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
 
-	queries := mq.WithTx(tx)
+	q := queries.WithTx(tx)
 
 	giop := models.GamesInsertOneParams{
 		Duration:  game.Duration,
@@ -26,9 +28,9 @@ func upsert(ctx context.Context, game Game) error {
 		Timestamp: game.Timestamp,
 		Type:      game.Type,
 	}
-	gameID, err := queries.GamesInsertOne(ctx, giop)
+	gameID, err := q.GamesInsertOne(ctx, giop)
 	if err != nil {
-		return fmt.Errorf("queries.GamesInsertOne(): %w", err)
+		return fmt.Errorf("q.GamesInsertOne(): %w", err)
 	}
 
 	for _, team := range game.Teams {
@@ -37,9 +39,9 @@ func upsert(ctx context.Context, game Game) error {
 			Number: team.Number,
 			Result: team.Result,
 		}
-		teamID, e := queries.TeamsInsertOne(ctx, tiop)
+		teamID, e := q.TeamsInsertOne(ctx, tiop)
 		if e != nil {
-			return fmt.Errorf("queries.TeamsInsertOne(): %w", e)
+			return fmt.Errorf("q.TeamsInsertOne(): %w", e)
 		}
 
 		for _, player := range team.Players {
@@ -54,9 +56,9 @@ func upsert(ctx context.Context, game Game) error {
 				RacesAssigned: player.RacesAssigned,
 				RacesSelected: player.RacesSelected,
 			}
-			playerID, e := queries.PlayersInsertOne(ctx, siop)
+			playerID, e := q.PlayersInsertOne(ctx, siop)
 			if e != nil {
-				return fmt.Errorf("queries.PlayersInsertOne(): %w", e)
+				return fmt.Errorf("q.PlayersInsertOne(): %w", e)
 			}
 
 			mimps := []models.MessagesInsertManyParams{}
@@ -69,7 +71,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				mimps = append(mimps, mimp)
 			}
-			mim := queries.MessagesInsertMany(ctx, mimps)
+			mim := q.MessagesInsertMany(ctx, mimps)
 			err = nil
 			mim.Exec(func(key int, e error) {
 				if e != nil && err == nil {
@@ -128,7 +130,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				simps = append(simps, simp)
 			}
-			smi := queries.StatsInsertMany(ctx, simps)
+			smi := q.StatsInsertMany(ctx, simps)
 			err = nil
 			smi.Exec(func(key int, e error) {
 				if e != nil && err == nil {
@@ -152,7 +154,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				uimps = append(uimps, uimp)
 			}
-			umi := queries.UnitsInsertMany(ctx, uimps)
+			umi := q.UnitsInsertMany(ctx, uimps)
 			err = nil
 			umi.Exec(func(key int, e error) {
 				if e != nil && err == nil {
