@@ -16,6 +16,7 @@ import (
 type Channel struct {
 	File   string
 	Worker int
+	Error  string
 }
 
 type Game struct {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -19,12 +20,16 @@ func worker(m *Model, wg *sync.WaitGroup, number int) {
 		m.Channels.Output <- Channel{File: file, Worker: number}
 
 		err := mq.GamesDeleteOne(context.Background(), file)
-		check(err)
+		if err != nil {
+			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
+		}
 
 		log.SetOutput(io.Discard)
 
 		r, err := rep.NewFromFile(file)
 		if err != nil {
+			err = fmt.Errorf("rep.NewFromFile(): %w", err)
+			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
 			continue
 		}
 		_ = r.Close()
@@ -32,10 +37,18 @@ func worker(m *Model, wg *sync.WaitGroup, number int) {
 		log.SetOutput(os.Stderr)
 
 		game, err := buildGame(file, r)
-		check(err)
+		if err != nil {
+			err = fmt.Errorf("buildGame(): %w", err)
+			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
+			continue
+		}
 
 		err = upsert(game)
-		check(err)
+		if err != nil {
+			err = fmt.Errorf("upsert(): %w", err)
+			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
+			continue
+		}
 
 		m.Channels.Output <- Channel{File: "", Worker: number}
 	}
