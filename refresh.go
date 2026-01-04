@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"io"
+	"log"
+	"os"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func refresh(ctx context.Context, application *Application) {
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(os.Stderr)
+
 	files, err := buildFiles(application.Settings.Replays)
 	if err != nil {
 		panic(err)
