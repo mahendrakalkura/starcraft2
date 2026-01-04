@@ -8,7 +8,7 @@ import (
 )
 
 func refresh() {
-	files, err := buildFiles(paths)
+	files, err := buildFiles(settings.Replays)
 	if err != nil {
 		panic(err)
 	}
