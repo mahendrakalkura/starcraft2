@@ -20,8 +20,6 @@ linters:
     govet:
       enable:
         - shadow
-formatters:
-  option: value
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
