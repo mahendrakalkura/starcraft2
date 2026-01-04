@@ -8,6 +8,16 @@ import (
 )
 
 func upsert(ctx context.Context, game Game) error {
+	tx, err := pp.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pp.Begin(): %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	queries := mq.WithTx(tx)
+
 	giop := models.GamesInsertOneParams{
 		Duration:  game.Duration,
 		File:      game.File,
@@ -16,9 +26,9 @@ func upsert(ctx context.Context, game Game) error {
 		Timestamp: game.Timestamp,
 		Type:      game.Type,
 	}
-	gameID, err := mq.GamesInsertOne(ctx, giop)
+	gameID, err := queries.GamesInsertOne(ctx, giop)
 	if err != nil {
-		return fmt.Errorf("mq.GamesInsertOne(): %w", err)
+		return fmt.Errorf("queries.GamesInsertOne(): %w", err)
 	}
 
 	for _, team := range game.Teams {
@@ -27,9 +37,9 @@ func upsert(ctx context.Context, game Game) error {
 			Number: team.Number,
 			Result: team.Result,
 		}
-		teamID, err := mq.TeamsInsertOne(ctx, tiop)
-		if err != nil {
-			return fmt.Errorf("mq.TeamsInsertOne(): %w", err)
+		teamID, e := queries.TeamsInsertOne(ctx, tiop)
+		if e != nil {
+			return fmt.Errorf("queries.TeamsInsertOne(): %w", e)
 		}
 
 		for _, player := range team.Players {
@@ -44,9 +54,9 @@ func upsert(ctx context.Context, game Game) error {
 				RacesAssigned: player.RacesAssigned,
 				RacesSelected: player.RacesSelected,
 			}
-			playerID, err := mq.PlayersInsertOne(ctx, siop)
-			if err != nil {
-				return fmt.Errorf("mq.PlayersInsertOne(): %w", err)
+			playerID, e := queries.PlayersInsertOne(ctx, siop)
+			if e != nil {
+				return fmt.Errorf("queries.PlayersInsertOne(): %w", e)
 			}
 
 			mimps := []models.MessagesInsertManyParams{}
@@ -59,7 +69,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				mimps = append(mimps, mimp)
 			}
-			mim := mq.MessagesInsertMany(ctx, mimps)
+			mim := queries.MessagesInsertMany(ctx, mimps)
 			err = nil
 			mim.Exec(func(key int, e error) {
 				if e != nil && err == nil {
@@ -118,7 +128,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				simps = append(simps, simp)
 			}
-			smi := mq.StatsInsertMany(ctx, simps)
+			smi := queries.StatsInsertMany(ctx, simps)
 			err = nil
 			smi.Exec(func(key int, e error) {
 				if e != nil && err == nil {
@@ -142,7 +152,7 @@ func upsert(ctx context.Context, game Game) error {
 				}
 				uimps = append(uimps, uimp)
 			}
-			umi := mq.UnitsInsertMany(ctx, uimps)
+			umi := queries.UnitsInsertMany(ctx, uimps)
 			err = nil
 			umi.Exec(func(key int, e error) {
 				if e != nil && err == nil {
@@ -154,6 +164,11 @@ func upsert(ctx context.Context, game Game) error {
 				return err
 			}
 		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("tx.Commit(): %w", err)
 	}
 
 	return nil
