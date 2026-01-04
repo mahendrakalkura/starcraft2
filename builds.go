@@ -144,6 +144,7 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 				player := &Player{}
 
 				player.Number = int64(key) + 1
+				player.Team = int64(value.TeamID())
 
 				color, err := buildColor(dpl.Color)
 				if err != nil {
