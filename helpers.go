@@ -13,5 +13,3 @@ func dump(i any) string { // nolint
 
 	return string(mi)
 }
-
-func unused(i any) {} // nolint
