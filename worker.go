@@ -35,7 +35,7 @@ func worker(ctx context.Context, application *Application, m *Model, number int)
 
 		game, err := buildGame(application.Settings, file, r)
 		if err != nil {
-			err = fmt.Errorf("buildGame(): %w", err)
+			err = fmt.Errorf("buildGame(%s): %w", file, err)
 			m.Channels.Output <- Channel{File: file, Worker: number, Error: err.Error()}
 			continue
 		}

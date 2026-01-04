@@ -137,8 +137,14 @@ func buildPlayers(r *rep.Rep, messages []*Message, stats []*Stat, units []*Unit)
 			if observe.Name == "Participant" {
 				id := value.UserID()
 
+				if id >= int64(len(initDataUserInitData)) {
+					return nil, fmt.Errorf("user ID %d out of bounds (max %d)", id, len(initDataUserInitData)-1)
+				}
 				iduid := initDataUserInitData[id]
 
+				if detailID >= len(detailsPlayerList) {
+					return nil, fmt.Errorf("detail ID %d out of bounds (max %d)", detailID, len(detailsPlayerList)-1)
+				}
 				dpl := detailsPlayerList[detailID]
 
 				player := &Player{}
