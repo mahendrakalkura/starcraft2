@@ -21,7 +21,7 @@ func refresh() {
 
 	go func() {
 		wg := sync.WaitGroup{}
-		for w := range 12 {
+		for w := range settings.Workers {
 			wg.Go(func() {
 				worker(ctx, &m, w+1)
 			})

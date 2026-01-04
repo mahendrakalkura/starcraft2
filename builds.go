@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -295,7 +296,7 @@ func buildTeams(players []*Player) ([]*Team, error) {
 		if teams[0].Result == "Undecided" && teams[1].Result == "Undecided" {
 			for team := range teams {
 				for _, player := range teams[team].Players {
-					if player.Name == "MuNi" || player.Name == "Pineapple" || player.Name == "SINDIOS" {
+					if isPlayer(player.Name) {
 						teams[team].Result = "Loss"
 						teams[1-team].Result = "Win"
 						break
@@ -388,4 +389,8 @@ func buildUnits(r *rep.Rep) ([]*Unit, error) {
 	}
 
 	return units, nil
+}
+
+func isPlayer(name string) bool {
+	return slices.Contains(settings.Players, name)
 }

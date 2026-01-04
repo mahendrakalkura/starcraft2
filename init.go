@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"main/models"
 
@@ -12,8 +11,9 @@ import (
 )
 
 var (
-	pp *pgxpool.Pool
-	mq *models.Queries
+	settings *Settings
+	pp       *pgxpool.Pool
+	mq       *models.Queries
 )
 
 func init() {
@@ -22,8 +22,10 @@ func init() {
 		panic(fmt.Errorf("godotenv.Load(): %w", err))
 	}
 
+	settings = NewSettings()
+
 	ctx := context.Background()
-	pp, err = pgxpool.New(ctx, os.Getenv("POSTGRES"))
+	pp, err = pgxpool.New(ctx, settings.Database)
 	if err != nil {
 		panic(fmt.Errorf("pgxpool.New(): %w", err))
 	}
