@@ -6,18 +6,18 @@
 <title>StarCraft II Replay Q&amp;A</title>
 <link rel="stylesheet" href="index.css">
 </head>
-<body>
-<aside id="sidebar">
-<button id="new-chat">New chat</button>
-<ul id="conversations"></ul>
+<body class="app">
+<aside class="sidebar">
+<button class="sidebar__new-chat" id="new-chat" type="button">New chat</button>
+<ul class="sidebar__list" id="conversations"></ul>
 </aside>
-<main id="main">
-<div id="messages"></div>
-<form id="composer">
-<textarea id="prompt" rows="2" placeholder="Ask about the replays, e.g. PlayerA's win rate on a given map" autocomplete="off"></textarea>
-<button id="send" type="submit">Send</button>
+<main class="chat">
+<div class="chat__messages" id="messages"></div>
+<form class="composer" id="composer">
+<textarea class="composer__input" id="prompt" rows="2" placeholder="Ask about the replays, e.g. PlayerA's win rate on a given map" autocomplete="off"></textarea>
+<button class="composer__send" id="send" type="submit">Send</button>
 </form>
 </main>
-<script src="index.js" defer></script>
+<script src="index.js" type="module"></script>
 </body>
 </html>

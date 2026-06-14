@@ -1,5 +1,3 @@
-"use strict";
-
 let currentConversationId = null;
 let pending = false;
 
@@ -9,21 +7,25 @@ const promptEl = document.getElementById("prompt");
 const sendEl = document.getElementById("send");
 const formEl = document.getElementById("composer");
 
-async function loadConversations() {
+const loadConversations = async () => {
   const response = await fetch("/api/conversations");
   const list = await response.json();
   conversationsEl.innerHTML = "";
   for (const conversation of list) {
     const li = document.createElement("li");
-    li.className = conversation.id === currentConversationId ? "active" : "";
+    li.className =
+      conversation.id === currentConversationId
+        ? "conversation conversation--active"
+        : "conversation";
 
     const title = document.createElement("span");
-    title.className = "title";
+    title.className = "conversation__title";
     title.textContent = conversation.title || "Untitled";
     title.onclick = () => openConversation(conversation.id);
 
     const remove = document.createElement("button");
-    remove.className = "delete";
+    remove.type = "button";
+    remove.className = "conversation__delete";
     remove.textContent = "x";
     remove.title = "Delete";
     remove.onclick = (event) => {
@@ -35,11 +37,14 @@ async function loadConversations() {
     li.appendChild(remove);
     conversationsEl.appendChild(li);
   }
-}
+};
 
-function addMessage(role, content, isHTML) {
+const addMessage = (modifiers, content, isHTML) => {
   const message = document.createElement("div");
-  message.className = "message " + role;
+  message.className = [
+    "message",
+    ...modifiers.split(" ").map((modifier) => `message--${modifier}`),
+  ].join(" ");
   if (isHTML) {
     message.innerHTML = content;
   } else {
@@ -48,17 +53,17 @@ function addMessage(role, content, isHTML) {
   messagesEl.appendChild(message);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return message;
-}
+};
 
-function newChat() {
+const newChat = () => {
   currentConversationId = null;
   messagesEl.innerHTML = "";
   promptEl.focus();
   loadConversations();
-}
+};
 
-async function openConversation(id) {
-  const response = await fetch("/api/conversation?id=" + id);
+const openConversation = async (id) => {
+  const response = await fetch(`/api/conversation?id=${id}`);
   if (!response.ok) {
     return;
   }
@@ -70,9 +75,9 @@ async function openConversation(id) {
     addMessage("assistant", exchange.html, true);
   }
   loadConversations();
-}
+};
 
-async function deleteConversation(id) {
+const deleteConversation = async (id) => {
   if (!confirm("Delete this chat?")) {
     return;
   }
@@ -86,9 +91,9 @@ async function deleteConversation(id) {
   } else {
     loadConversations();
   }
-}
+};
 
-async function send(prompt) {
+const send = async (prompt) => {
   pending = true;
   sendEl.disabled = true;
   promptEl.disabled = true;
@@ -100,7 +105,10 @@ async function send(prompt) {
     const response = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId: currentConversationId || 0, prompt: prompt }),
+      body: JSON.stringify({
+        conversationId: currentConversationId || 0,
+        prompt: prompt,
+      }),
     });
     const result = await response.json();
     thinking.remove();
@@ -113,14 +121,14 @@ async function send(prompt) {
     }
   } catch (error) {
     thinking.remove();
-    addMessage("assistant", "Request failed: " + error, false);
+    addMessage("assistant", `Request failed: ${error}`, false);
   } finally {
     pending = false;
     sendEl.disabled = false;
     promptEl.disabled = false;
     promptEl.focus();
   }
-}
+};
 
 formEl.addEventListener("submit", (event) => {
   event.preventDefault();

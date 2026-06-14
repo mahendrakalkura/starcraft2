@@ -1,0 +1,12 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+args_bin = ["-action", "serve"]
+bin = "./tmp/main"
+cmd = "sqlc generate && go build -buildvcs=false -o ./tmp/main ."
+delay = 200
+exclude_dir = ["models", "postgres", "sidecar", "tmp"]
+include_ext = ["css", "go", "html", "js", "sql"]
+kill_delay = 500
+stop_on_error = true

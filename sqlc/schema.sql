@@ -110,3 +110,22 @@ SELECT g.id, g.played_at, g.map, g.mode, g.duration, g.amm, g.competitive,
 FROM games g
 LEFT JOIN LATERAL (SELECT string_agg(p.name, ', ' ORDER BY p.name) AS names FROM players p WHERE p.game_id = g.id AND p.result = 'Win') w ON true
 LEFT JOIN LATERAL (SELECT string_agg(p.name, ', ' ORDER BY p.name) AS names FROM players p WHERE p.game_id = g.id AND p.result = 'Loss') l ON true;
+
+CREATE TABLE conversations (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE turns (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tool_calls JSONB,
+    tool_call_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX turns_conversation_id ON turns(conversation_id, id);

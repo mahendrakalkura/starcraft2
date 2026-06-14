@@ -1,25 +1,19 @@
-.PHONY: build reset sqlc up down ingest
+.PHONY: build down ingest reset sqlc up
 
 build:
-	cd sidecar && cargo build --release
-	cp sidecar/target/release/sc2json sc2json
-	gofmt -l -w .
-	go mod tidy
-	go build -o main .
-
-reset:
-	psql "$$(grep ^DATABASE .env | cut -d= -f2-)" < sqlc/schema.sql
-	psql "$$(grep ^DATABASE .env | cut -d= -f2-)" < sqlc/chat_schema.sql
-
-sqlc:
-	sqlc generate
-
-# Docker Compose helpers.
-up:
-	docker compose up -d --build
+	docker compose build
 
 down:
 	docker compose down
 
 ingest:
 	docker compose run --rm cli -action ingest
+
+reset:
+	docker compose exec -T postgres psql -U postgres -d starcraft2 < sqlc/schema.sql
+
+sqlc:
+	docker run --rm -v "$(PWD)":/src -w /src sqlc/sqlc generate
+
+up:
+	docker compose up -d --build

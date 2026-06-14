@@ -1,14 +1,12 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries:
-      - "sqlc/queries.sql"
-      - "sqlc/chat_queries.sql"
-    schema:
-      - "sqlc/schema.sql"
-      - "sqlc/chat_schema.sql"
     gen:
       go:
-        package: "models"
         out: "models"
+        package: "models"
         sql_package: "pgx/v5"
+    queries:
+      - "sqlc/queries.sql"
+    schema:
+      - "sqlc/schema.sql"

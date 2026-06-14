@@ -1,6 +1,6 @@
 models
+postgres
 sidecar/target
+tmp
 
 .env
-main
-sc2json

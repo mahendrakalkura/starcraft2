@@ -131,7 +131,7 @@ func serve(ctx context.Context, application *Application) error {
 
 func handleConversations(application *Application) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := application.Queries.ConversationsList(r.Context())
+		rows, err := application.Queries.ConversationList(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -485,9 +485,6 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func systemPrompt(settings *Settings) string {
 	schema := schemaSQL
-	if index := strings.Index(schema, "CREATE TABLE files"); index >= 0 {
-		schema = schema[index:]
-	}
 
 	players := "none configured"
 	if len(settings.Players) > 0 {
@@ -498,7 +495,7 @@ func systemPrompt(settings *Settings) string {
 
 You have one tool, run_sql, that runs a single read-only SELECT and returns the rows as JSON. Always run at least one query to answer a question; never answer from memory or guess numbers. You may run up to %d queries per question.
 
-Database schema (only these tables exist for you; query nothing else):
+Database schema (the conversations and turns tables hold this chat app's own history, not game data; ignore them for game questions):
 
 %s
 

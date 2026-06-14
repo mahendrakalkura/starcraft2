@@ -1,117 +1,101 @@
 # StarCraft II Replay Analyzer
 
-Parses StarCraft II replay files (.SC2Replay) into PostgreSQL, runs analysis reports, and serves a natural-language Q&A web page over the data. Two binaries: `sc2json` (Rust sidecar that turns one replay into compact JSON) and `main` (Go CLI that ingests replays, runs reports, and hosts the web UI).
+Parses StarCraft II replay files (.SC2Replay) into PostgreSQL and serves a natural-language Q&A web page over the data. Ask questions in plain English; an AI agent writes a read-only SQL query, runs it, and answers from the rows it gets back.
 
-For how the system works internally (architecture, the agent loop, the data model), see CONTEXT.md.
+Everything runs in Docker containers. There is no host build or host run path: the Go binary, the Rust sidecar, and `sqlc` all run inside the image, against the repo mounted at `/sources`. For how the system works internally (architecture, the agent loop, the data model), see CONTEXT.md. To install on a server behind nginx, see DEPLOY.md.
 
 ## Requirements
 
-- Go 1.26+
-- PostgreSQL 18+
-- Rust (cargo)
-- sqlc (only when changing the schema or queries)
+- Docker Engine with the Docker Compose plugin.
+- An OpenRouter API key (for the web UI).
 
-To run everything in containers instead, you only need Docker and Docker Compose (see Docker below).
-
-## Build
+## Run locally (fresh clone)
 
 ```bash
-make build
+git clone <repo-url> starcraft2
+cd starcraft2
+
+cp .env.sample .env        # then edit: OPENROUTER_API_KEY, PLAYERS, REPLAYS_HOST, POSTGRES_PASSWORD
+make up                    # build the image and start postgres + ui
 ```
 
-This builds the Rust sidecar in release mode, copies `sc2json` next to the Go binary, and builds `main`.
+`.env.sample` ships with `ENVIRONMENT=development`, so the `ui` container runs under [air](https://github.com/air-verse/air): edit any `.go`, `.sql`, or frontend file and the server rebuilds and restarts automatically. The repo is mounted into the container at `/sources`, and `models/` is generated in-container on startup (run `make sqlc` if you also want it on the host for your editor).
+
+Open http://localhost:8080 and ask a question. The UI is published on `127.0.0.1` only.
+
+To import replays (the `cli` service is on a profile, so it does not start with `make up`):
+
+```bash
+make up                    # postgres must be running first
+make ingest                # docker compose run --rm cli -action ingest
+```
+
+`make ingest` runs a one-shot container that parses every replay under `REPLAYS_HOST`, stores the new ones, and exits. `postgres` and `ui` keep running. Re-running is cheap: already-processed paths are skipped.
 
 ## Configuration
 
-Copy `.env.sample` to `.env` and edit. A `.env` file is optional if the variables are set in the environment.
+All configuration is in `.env`, read by Docker Compose for `${VAR}` substitution. Copy `.env.sample` to `.env` and edit.
 
 ```
-DATABASE=postgres://user:password@host:5432/starcraft2?sslmode=disable
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=deepseek/deepseek-chat
-PORT=8080
-PLAYERS=PlayerA,PlayerB,PlayerC
-REPLAYS="/path/to/StarCraft II/Accounts/"
-WORKERS=16
++--------------------+----------------------------------------------------------+
+| Variable           | Purpose                                                  |
++--------------------+----------------------------------------------------------+
+| ENVIRONMENT        | development (air hot reload) or production (build once). |
+| OPENROUTER_API_KEY | OpenRouter key for the web UI (required).                |
+| OPENROUTER_MODEL   | Any tool-calling model. Defaults to deepseek/deepseek-chat. |
+| PLAYERS            | Tracked player names, comma-separated.                   |
+| PORT               | Host port for the UI (published on 127.0.0.1).           |
+| POSTGRES_PASSWORD  | Password for the postgres container.                     |
+| REPLAYS_HOST       | Host replay directory, mounted read-only at /replays.    |
+| WORKERS            | Ingest worker count. Empty = CPU count.                  |
++--------------------+----------------------------------------------------------+
 ```
 
-- `DATABASE` (required): PostgreSQL connection string.
-- `OPENROUTER_API_KEY` (required for `serve`): OpenRouter key for the web UI.
-- `OPENROUTER_MODEL` (optional): any tool-calling model, defaults to `deepseek/deepseek-chat`.
-- `PLAYERS` (optional): tracked player names; the first is the default `-me` for reports. Also used to resolve games where every result is "Undecided" (the recording player left early).
-- `PORT` (optional): web server port for `serve`, defaults to `8080`.
-- `REPLAYS` (required for `ingest`): comma-separated directories, walked recursively for .SC2Replay files.
-- `SC2JSON` (optional): path to the sidecar binary, defaults to `sc2json` next to the `main` executable.
-- `WORKERS` (optional): worker count, defaults to CPU count.
+`REPLAYS` inside the container is fixed to `/replays`; ingest walks it recursively, so point `REPLAYS_HOST` at a parent directory to cover several replay folders at once.
 
-Initialize the database (WARNING: drops all data):
+## Services
+
+`docker compose up` starts `postgres` (the database) and `ui` (the web server). `cli` is the same image on a `cli` profile for one-off commands and does not start by default.
+
+```
++----------+-----------------------------------+----------------------------+
+| Service  | What it runs                      | Lifecycle                  |
++----------+-----------------------------------+----------------------------+
+| cli      | main -action ingest|sample|...    | on-demand (compose run)    |
+| postgres | postgres:18.4                     | always up, healthchecked   |
+| ui       | main -action serve                | always up, depends on db   |
++----------+-----------------------------------+----------------------------+
+```
+
+The CLI actions:
+
+```bash
+make ingest                                          # import replays
+docker compose run --rm cli -action statistics       # row counts per table
+docker compose run --rm cli -action sample -file /replays/some.SC2Replay   # pretty-print parsed JSON
+```
+
+## Make targets
+
+```
+make build    # docker compose build
+make up        # build and start postgres + ui (detached)
+make down      # stop and remove containers
+make ingest    # one-shot replay import
+make sqlc      # regenerate models/ on the host (runs sqlc in a container)
+make reset     # re-apply sqlc/schema.sql to the running postgres (WARNING: drops all data)
+```
+
+## Reset the database
+
+`make reset` runs `sqlc/schema.sql` against the running `postgres` container. The schema starts with `DROP SCHEMA public CASCADE`, so this wipes all games and saved chats:
 
 ```bash
 make reset
+make ingest
 ```
 
-## Usage
-
-```bash
-./main                      # ingest (default action)
-./main -action ingest -force    # wipe imported data and reprocess everything
-./main -action serve            # start the natural-language Q&A web UI
-./main -action statistics       # row counts per table
-./main -action sample -file path/to/replay.SC2Replay   # pretty-print sidecar JSON
-```
-
-Each ingested file ends in one state: `imported`, `skipped_ai` (had a Computer player), `duplicate`, or `failed`. Already-processed paths are skipped on re-run; delete a `files` row to retry it. See CONTEXT.md for the full pipeline.
-
-Analysis reports (`-me` defaults to the first `PLAYERS` entry):
-
-```bash
-./main -action chat                              # most-typed phrases and gg rate by result
-./main -action durations                         # game-length bell curve with win rates
-./main -action economy                           # avg income/workers at 5/10/15 min, wins vs losses
-./main -action impact -name PlayerB -with PlayerC    # tracked-team win rate with player(s) as ally vs opponent
-./main -action maps                              # per-map record with recent form and current-pool marker
-./main -action matchup                           # win rate by my race x mode and by opposing race mix
-./main -action maxout                            # maxed-supply win rates by Carrier count + loss breakdown
-./main -action mmr-history                       # monthly games/MMR/win rate plus per-race summary
-./main -action openings                          # cannon vs stalker openings: overall, year, timing, map
-./main -action partners                          # win rate per tracked-team lineup
-./main -action report-1                          # match list: winners, losers, map, mode, duration
-./main -action report-2                          # daily win/loss bars for tracked PLAYERS
-./main -action rivals                            # most-faced opponents with MMR diff and anomaly notes
-./main -action streaks                           # win rate after win/loss streaks, longest streaks
-./main -action versus -name Opponent            # head-to-head: record, by year, race, map, last 10
-```
-
-## Web UI
-
-`./main -action serve` starts a public, no-auth web page where anyone can ask questions about the database in plain English. An AI agent (DeepSeek via OpenRouter) generates a read-only SQL query, runs it, and writes a markdown answer. Set `OPENROUTER_API_KEY` (and optionally `OPENROUTER_MODEL`). Listens on `PORT` (default 8080). Chats are saved and listed in a sidebar shared by everyone.
-
-This is a wide-open toy: no authentication, no rate limit, no usage cap. Anyone who can reach the URL can run paid AI calls and read the game data. Run it only where that is acceptable (for example a host reached by a private IP).
-
-## Docker
-
-Everything runs as Docker Compose containers: `db` (Postgres), `web` (the serve UI), and `cli` (the same binary for one-off ingest and reports, on a `cli` profile so it does not start by default).
-
-```bash
-cp .env.sample .env       # set OPENROUTER_API_KEY, POSTGRES_PASSWORD, REPLAYS_HOST
-make up                   # build and start db + web (http://<host>:8080)
-make ingest               # docker compose run --rm cli -action ingest
-docker compose run --rm cli -action versus -name Opponent
-```
-
-On first boot the db container initializes the game schema (`sqlc/schema.sql`) and the chat schema (`sqlc/chat_schema.sql`). Both `conversations`/`turns` live in `public`, so re-importing replays clears saved chats; recreate them after a reset:
-
-```bash
-docker compose exec -T db psql -U postgres -d starcraft2 < sqlc/schema.sql
-docker compose exec -T db psql -U postgres -d starcraft2 < sqlc/chat_schema.sql
-docker compose run --rm cli -action ingest -force
-```
-
-## Development
-
-```bash
-make sqlc    # regenerate models after editing the schema or query files
-```
+To start completely fresh, stop the stack and delete the bind-mounted data directory (`./postgres`), then `make up`.
 
 ## License
 

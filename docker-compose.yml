@@ -1,47 +1,52 @@
 services:
-  db:
-    image: postgres:18.4
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: starcraft2
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./sqlc/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./sqlc/chat_schema.sql:/docker-entrypoint-initdb.d/02-chat.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d starcraft2"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  web:
-    build: .
-    command: ["-action", "serve"]
-    environment:
-      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/starcraft2?sslmode=disable
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat}
-      PORT: "8080"
-      PLAYERS: ${PLAYERS:-}
-    ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
-
   cli:
     build: .
-    profiles: ["cli"]
+    container_name: cli
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/starcraft2?sslmode=disable
+      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/starcraft2?sslmode=disable
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       PLAYERS: ${PLAYERS:-}
       REPLAYS: /replays
+      WORKERS: ${WORKERS:-}
+    profiles: ["cli"]
     volumes:
+      - .:/sources
       - ${REPLAYS_HOST:-./replays}:/replays:ro
-    depends_on:
-      db:
-        condition: service_healthy
 
-volumes:
-  pgdata:
+  postgres:
+    container_name: postgres
+    environment:
+      POSTGRES_DB: starcraft2
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: postgres
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starcraft2"]
+      timeout: 5s
+    image: postgres:18.4
+    volumes:
+      - ./postgres:/var/lib/postgresql
+      - ./sqlc/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+
+  ui:
+    build: .
+    command: ["-action", "serve"]
+    container_name: ui
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/starcraft2?sslmode=disable
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat}
+      PLAYERS: ${PLAYERS:-}
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    volumes:
+      - .:/sources

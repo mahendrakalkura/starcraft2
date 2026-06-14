@@ -2,19 +2,20 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
 }
 
-body {
+.app {
   display: flex;
   font-family: system-ui, sans-serif;
   color: #1b1b1f;
   background: #ffffff;
 }
 
-#sidebar {
+.sidebar {
   width: 260px;
   flex-shrink: 0;
   display: flex;
@@ -24,7 +25,7 @@ body {
   overflow-y: auto;
 }
 
-#new-chat {
+.sidebar__new-chat {
   margin: 12px;
   padding: 10px;
   border: 1px solid #3a3a44;
@@ -35,29 +36,29 @@ body {
   font-size: 14px;
 }
 
-#new-chat:hover {
+.sidebar__new-chat:hover {
   background: #30303a;
 }
 
-#conversations {
+.sidebar__list {
   list-style: none;
   margin: 0;
   padding: 0 8px;
 }
 
-#conversations li {
+.conversation {
   display: flex;
   align-items: center;
   border-radius: 6px;
   padding: 2px;
 }
 
-#conversations li.active,
-#conversations li:hover {
+.conversation--active,
+.conversation:hover {
   background: #25252c;
 }
 
-#conversations .title {
+.conversation__title {
   flex: 1;
   padding: 8px;
   font-size: 13px;
@@ -67,7 +68,7 @@ body {
   text-overflow: ellipsis;
 }
 
-#conversations .delete {
+.conversation__delete {
   border: none;
   background: transparent;
   color: #8a8a96;
@@ -75,18 +76,18 @@ body {
   padding: 4px 8px;
 }
 
-#conversations .delete:hover {
+.conversation__delete:hover {
   color: #ff6b6b;
 }
 
-#main {
+.chat {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-#messages {
+.chat__messages {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
@@ -101,17 +102,17 @@ body {
   white-space: pre-wrap;
 }
 
-.message.user {
+.message--user {
   background: #eef2ff;
   white-space: pre-wrap;
 }
 
-.message.assistant {
+.message--assistant {
   background: #f5f5f7;
   white-space: normal;
 }
 
-.message.thinking {
+.message--thinking {
   color: #8a8a96;
   font-style: italic;
 }
@@ -146,14 +147,14 @@ body {
   border-radius: 4px;
 }
 
-#composer {
+.composer {
   display: flex;
   gap: 8px;
   padding: 16px 24px;
   border-top: 1px solid #e2e2e8;
 }
 
-#prompt {
+.composer__input {
   flex: 1;
   resize: none;
   padding: 10px 12px;
@@ -162,7 +163,7 @@ body {
   font: inherit;
 }
 
-#send {
+.composer__send {
   padding: 0 20px;
   border: none;
   border-radius: 8px;
@@ -172,7 +173,7 @@ body {
   font-size: 14px;
 }
 
-#send:disabled {
+.composer__send:disabled {
   background: #a5a3d6;
   cursor: default;
 }
