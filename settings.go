@@ -29,7 +29,8 @@ type Settings struct {
 }
 
 func NewSettings() (*Settings, error) {
-	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+	err := godotenv.Load()
+	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("godotenv.Load(): %w", err)
 	}
 
@@ -67,7 +68,7 @@ func NewSettings() (*Settings, error) {
 		return nil, fmt.Errorf("GO_WORKERS must be >= 1, got %d", workers)
 	}
 
-	return &Settings{
+	settings := &Settings{
 		GoEnvironment:    goEnvironment,
 		GoPlayers:        splitList(goPlayers),
 		GoPort:           goPort,
@@ -80,7 +81,8 @@ func NewSettings() (*Settings, error) {
 		PostgresPassword: postgresPassword,
 		PostgresPort:     postgresPort,
 		PostgresUser:     postgresUser,
-	}, nil
+	}
+	return settings, nil
 }
 
 // DatabaseURL builds the pgx connection string from the Postgres settings.
