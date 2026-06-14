@@ -5,23 +5,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/starcraft2?sslmode=disable
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      PLAYERS: ${PLAYERS:-}
-      REPLAYS: /replays
-      WORKERS: ${WORKERS:-}
+    env_file: .env
     profiles: ["cli"]
     volumes:
       - .:/sources
-      - ${REPLAYS_HOST:-./replays}:/replays:ro
+      - type: bind
+        source: ${GO_REPLAYS}
+        target: ${GO_REPLAYS}
+        read_only: true
 
   postgres:
     container_name: postgres
-    environment:
-      POSTGRES_DB: starcraft2
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_USER: postgres
+    env_file: .env
     healthcheck:
       interval: 5s
       retries: 10
@@ -39,14 +34,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/starcraft2?sslmode=disable
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat}
-      PLAYERS: ${PLAYERS:-}
-      PORT: "8080"
+    env_file: .env
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
+      - "127.0.0.1:${GO_PORT}:${GO_PORT}"
     volumes:
       - .:/sources

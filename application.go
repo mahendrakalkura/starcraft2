@@ -27,7 +27,7 @@ func NewApplication(ctx context.Context) (*Application, error) {
 		return nil, fmt.Errorf("NewSettings(): %w", err)
 	}
 
-	database, err := pgxpool.New(ctx, settings.Database)
+	database, err := pgxpool.New(ctx, settings.DatabaseURL())
 	if err != nil {
 		return nil, fmt.Errorf("pgxpool.New(): %w", err)
 	}

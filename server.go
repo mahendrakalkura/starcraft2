@@ -101,10 +101,6 @@ type orResponse struct {
 }
 
 func serve(ctx context.Context, application *Application) error {
-	if application.Settings.OpenRouterKey == "" {
-		return fmt.Errorf("OPENROUTER_API_KEY environment variable is required for the serve action")
-	}
-
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServer(http.FS(webFS)))
 	mux.HandleFunc("GET /api/conversations", handleConversations(application))
@@ -112,7 +108,7 @@ func serve(ctx context.Context, application *Application) error {
 	mux.HandleFunc("GET /api/conversation", handleConversation(application))
 	mux.HandleFunc("POST /api/conversation/delete", handleDelete(application))
 
-	server := &http.Server{Addr: ":" + application.Settings.Port, Handler: mux}
+	server := &http.Server{Addr: fmt.Sprintf(":%s", application.Settings.GoPort), Handler: mux}
 
 	go func() {
 		<-ctx.Done()
@@ -121,7 +117,7 @@ func serve(ctx context.Context, application *Application) error {
 		_ = server.Shutdown(shutdown)
 	}()
 
-	fmt.Printf("listening on :%s\n", application.Settings.Port)
+	fmt.Printf("listening on :%s\n", application.Settings.GoPort)
 	err := server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -198,7 +194,7 @@ func handleAsk(application *Application) http.HandlerFunc {
 
 		answer, err := runAgent(ctx, application, conversationID)
 		if err != nil {
-			answer = "**Error:** " + err.Error()
+			answer = fmt.Sprintf("**Error:** %s", err.Error())
 			_ = persistTurn(ctx, application, conversationID, "assistant", answer, nil, "")
 		}
 		_ = application.Queries.ConversationTouch(ctx, conversationID)
@@ -343,18 +339,18 @@ func runSQL(ctx context.Context, pool interface {
 
 	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return "error: " + err.Error()
+		return fmt.Sprintf("error: %s", err.Error())
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = "+strconv.Itoa(int(queryTimeout/time.Millisecond))); err != nil {
-		return "error: " + err.Error()
+	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", int(queryTimeout/time.Millisecond))); err != nil {
+		return fmt.Sprintf("error: %s", err.Error())
 	}
 
 	// Let Postgres serialize each row to JSON so all column types render correctly.
-	rows, err := tx.Query(ctx, "SELECT to_jsonb(t) FROM ("+query+") t")
+	rows, err := tx.Query(ctx, fmt.Sprintf("SELECT to_jsonb(t) FROM (%s) t", query))
 	if err != nil {
-		return "error: " + err.Error()
+		return fmt.Sprintf("error: %s", err.Error())
 	}
 	defer rows.Close()
 
@@ -362,17 +358,17 @@ func runSQL(ctx context.Context, pool interface {
 	for rows.Next() {
 		var row []byte
 		if err := rows.Scan(&row); err != nil {
-			return "error: " + err.Error()
+			return fmt.Sprintf("error: %s", err.Error())
 		}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
-		return "error: " + err.Error()
+		return fmt.Sprintf("error: %s", err.Error())
 	}
 
 	encoded, err := json.Marshal(out)
 	if err != nil {
-		return "error: " + err.Error()
+		return fmt.Sprintf("error: %s", err.Error())
 	}
 	return string(encoded)
 }
@@ -392,7 +388,7 @@ func callOpenRouter(ctx context.Context, settings *Settings, messages []orMessag
 	if err != nil {
 		return orResponse{}, fmt.Errorf("http.NewRequestWithContext(): %w", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+settings.OpenRouterKey)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.OpenRouterAPIKey))
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := http.DefaultClient.Do(request)
@@ -472,7 +468,7 @@ func promptTitle(prompt string) string {
 func renderMarkdown(source string) string {
 	var buffer bytes.Buffer
 	if err := markdown.Convert([]byte(source), &buffer); err != nil {
-		return "<p>" + html.EscapeString(source) + "</p>"
+		return fmt.Sprintf("<p>%s</p>", html.EscapeString(source))
 	}
 	return buffer.String()
 }
@@ -487,8 +483,8 @@ func systemPrompt(settings *Settings) string {
 	schema := schemaSQL
 
 	players := "none configured"
-	if len(settings.Players) > 0 {
-		players = strings.Join(settings.Players, ", ")
+	if len(settings.GoPlayers) > 0 {
+		players = strings.Join(settings.GoPlayers, ", ")
 	}
 
 	return fmt.Sprintf(`You answer questions about a StarCraft II 4v4 ladder replay database (PostgreSQL).

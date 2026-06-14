@@ -24,14 +24,15 @@ cd /opt/starcraft2
 cp .env.sample .env
 ```
 
-Edit `.env`:
+Every variable in `.env` is required and there are no defaults; the app prints which are missing and exits if any is blank. The Go process reads `.env` directly (godotenv), so the names in `.env` are the names used in the code. Fill in all of them, and in particular:
 
-- `ENVIRONMENT=production` - builds the binary once at container start and runs it (no air, no file watching).
+- `GO_ENVIRONMENT=production` - builds the binary once at container start and runs it (no air, no file watching).
+- `GO_PORT` - port the UI listens on and is published at (stays bound to `127.0.0.1`).
+- `GO_PLAYERS` - tracked player names.
+- `GO_REPLAYS` - absolute path to the replay directory on this server (bind-mounted at the same path in the container).
 - `OPENROUTER_API_KEY` - your key.
-- `POSTGRES_PASSWORD` - a strong password.
-- `PLAYERS` - tracked player names.
-- `REPLAYS_HOST` - absolute path to the replay directory on this server.
-- `PORT` - host port for the UI (stays bound to `127.0.0.1`). Default `8080`.
+- `OPENROUTER_MODEL` - a tool-calling model, e.g. `deepseek/deepseek-v4-flash`.
+- `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `POSTGRES_USER` - the database settings (`POSTGRES_HOST` is the compose service name, `postgres`). Use a strong password. The app builds its connection string from these.
 
 ## 3. Start the stack
 
@@ -39,7 +40,7 @@ Edit `.env`:
 docker compose up -d --build
 ```
 
-This starts `postgres` and `ui`. On first boot the database initializes from `sqlc/schema.sql`. The `ui` container builds the Go binary at startup and serves on `127.0.0.1:${PORT}`.
+This starts `postgres` and `ui`. On first boot the database initializes from `sqlc/schema.sql`. The `ui` container builds the Go binary at startup and serves on `127.0.0.1:${GO_PORT}`.
 
 Import replays:
 
@@ -50,12 +51,12 @@ docker compose run --rm cli -action ingest
 Verify the app is up locally:
 
 ```bash
-curl -sI http://127.0.0.1:8080 | head -1
+curl -sI http://127.0.0.1:${GO_PORT} | head -1
 ```
 
 ## 4. nginx reverse proxy
 
-Add a `location` block to the existing HTTPS server block for your domain (adjust the port if you changed `PORT`):
+Add a `location` block to the existing HTTPS server block for your domain (match the port to `GO_PORT`):
 
 ```nginx
 location / {

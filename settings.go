@@ -3,84 +3,98 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
 )
 
+// Settings maps one-to-one to the variables in .env. The field names match the
+// environment variable names, so there is only ever one name to reason about.
+// Every variable is required: NewSettings reports any that are missing and the
+// program exits. There are no defaults.
 type Settings struct {
-	Database        string
-	OpenRouterKey   string
-	OpenRouterModel string
-	Players         []string
-	Port            string
-	Replays         []string
-	Workers         int
+	GoEnvironment    string
+	GoPlayers        []string
+	GoPort           string
+	GoReplays        []string
+	GoWorkers        int
+	OpenRouterAPIKey string
+	OpenRouterModel  string
+	PostgresDB       string
+	PostgresHost     string
+	PostgresPassword string
+	PostgresPort     string
+	PostgresUser     string
 }
 
 func NewSettings() (*Settings, error) {
-	err := godotenv.Load()
-	if err != nil && !os.IsNotExist(err) {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("godotenv.Load(): %w", err)
 	}
 
-	database := os.Getenv("DATABASE")
-	if database == "" {
-		return nil, fmt.Errorf("DATABASE environment variable is required")
-	}
-
-	// REPLAYS is required only for ingest, which checks it; serve does not need it.
-	replays := []string{}
-	s := os.Getenv("REPLAYS")
-	if s != "" {
-		replays = strings.Split(s, ",")
-		for r := range replays {
-			replays[r] = strings.Trim(strings.TrimSpace(replays[r]), `"`)
+	missing := []string{}
+	get := func(key string) string {
+		value := strings.TrimSpace(os.Getenv(key))
+		if value == "" {
+			missing = append(missing, key)
 		}
+		return value
 	}
 
-	openRouterModel := os.Getenv("OPENROUTER_MODEL")
-	if openRouterModel == "" {
-		openRouterModel = "deepseek/deepseek-chat"
+	goEnvironment := get("GO_ENVIRONMENT")
+	goPlayers := get("GO_PLAYERS")
+	goPort := get("GO_PORT")
+	goReplays := get("GO_REPLAYS")
+	goWorkers := get("GO_WORKERS")
+	openRouterAPIKey := get("OPENROUTER_API_KEY")
+	openRouterModel := get("OPENROUTER_MODEL")
+	postgresDB := get("POSTGRES_DB")
+	postgresHost := get("POSTGRES_HOST")
+	postgresPassword := get("POSTGRES_PASSWORD")
+	postgresPort := get("POSTGRES_PORT")
+	postgresUser := get("POSTGRES_USER")
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	workers, err := strconv.Atoi(goWorkers)
+	if err != nil {
+		return nil, fmt.Errorf("GO_WORKERS must be a number: %w", err)
+	}
+	if workers < 1 {
+		return nil, fmt.Errorf("GO_WORKERS must be >= 1, got %d", workers)
 	}
 
-	workers := runtime.NumCPU()
-	s = os.Getenv("WORKERS")
-	if s != "" {
-		workers, err = strconv.Atoi(s)
-		if err != nil {
-			return nil, fmt.Errorf("WORKERS must be a number: %w", err)
-		}
-		if workers < 1 {
-			return nil, fmt.Errorf("WORKERS must be >= 1, got %d", workers)
-		}
-	}
+	return &Settings{
+		GoEnvironment:    goEnvironment,
+		GoPlayers:        splitList(goPlayers),
+		GoPort:           goPort,
+		GoReplays:        splitList(goReplays),
+		GoWorkers:        workers,
+		OpenRouterAPIKey: openRouterAPIKey,
+		OpenRouterModel:  openRouterModel,
+		PostgresDB:       postgresDB,
+		PostgresHost:     postgresHost,
+		PostgresPassword: postgresPassword,
+		PostgresPort:     postgresPort,
+		PostgresUser:     postgresUser,
+	}, nil
+}
 
-	players := []string{}
-	s = os.Getenv("PLAYERS")
-	if s != "" {
-		players = strings.Split(s, ",")
-		for p := range players {
-			players[p] = strings.TrimSpace(players[p])
-		}
-	}
+// DatabaseURL builds the pgx connection string from the Postgres settings.
+func (s *Settings) DatabaseURL() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		s.PostgresUser, s.PostgresPassword, s.PostgresHost, s.PostgresPort, s.PostgresDB,
+	)
+}
 
-	settings := &Settings{
-		Database:        database,
-		OpenRouterKey:   os.Getenv("OPENROUTER_API_KEY"),
-		OpenRouterModel: openRouterModel,
-		Players:         players,
-		Port:            port,
-		Replays:         replays,
-		Workers:         workers,
+func splitList(value string) []string {
+	parts := strings.Split(value, ",")
+	for i := range parts {
+		parts[i] = strings.Trim(strings.TrimSpace(parts[i]), `"`)
 	}
-
-	return settings, nil
+	return parts
 }

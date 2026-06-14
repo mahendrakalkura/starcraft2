@@ -16,9 +16,15 @@ Two binaries plus Postgres.
 
 `main` has four actions: `ingest`, `serve`, `statistics` (row counts per table), and `sample` (pretty-print the sidecar JSON for one replay). The earlier precomputed analysis reports were removed; all analysis is now done live by the LLM in the web UI.
 
+## Configuration
+
+All configuration is environment variables, and the `Settings` struct (`settings.go`) maps one-to-one to them: the field for `GO_PLAYERS` is read from `os.Getenv("GO_PLAYERS")`, and so on. There is a single name per setting - no separate "env name" and "code name" to keep in sync, and no compose-layer remapping. The Go process loads `.env` directly with godotenv.
+
+Every variable is required and there are no defaults. `NewSettings` collects all missing variables and returns one error listing them, and `main` prints it and exits non-zero. The variables, grouped by prefix: `GO_ENVIRONMENT`, `GO_PLAYERS`, `GO_PORT`, `GO_REPLAYS`, `GO_WORKERS`; `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`; `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `POSTGRES_USER`. `Settings.DatabaseURL()` builds the pgx connection string from the `POSTGRES_*` values, so the password is never duplicated in a separate `DATABASE` URL. `GO_ENVIRONMENT` is consumed by `entrypoint.sh` (shell), the rest by the Go process.
+
 ## Ingest Pipeline
 
-`main -action ingest` walks the `REPLAYS` directories recursively for .SC2Replay files, skips any path already in the `files` table (any status, never retried), and runs the rest through a worker pool (`WORKERS`, default CPU count, CPU-bound). Each file ends in exactly one state:
+`main -action ingest` walks the `GO_REPLAYS` directories recursively for .SC2Replay files, skips any path already in the `files` table (any status, never retried), and runs the rest through a worker pool (`GO_WORKERS`, CPU-bound). Each file ends in exactly one state:
 
 - `duplicate`: a copy of an already-imported match. Matches are deduplicated by a SHA-256 fingerprint of played_at, map, and the team:name roster, so the same game saved under several paths is stored once.
 - `failed`: the sidecar could not parse it. Delete the `files` row to retry.
@@ -85,7 +91,7 @@ The model is forced to run at least one query per question (the first model step
 
 The system prompt is rebuilt on every call (not stored), so schema or rule changes take effect immediately, even in old chats. It embeds:
 
-- The key durable domain facts the model needs to write correct SQL (see Replay Format and Parsing above): tick math, `food_used >= 195` means maxed, unit `action` semantics, team is a column (no teams table), the `matches` view, and the tracked PLAYERS.
+- The key durable domain facts the model needs to write correct SQL (see Replay Format and Parsing above): tick math, `food_used >= 195` means maxed, unit `action` semantics, team is a column (no teams table), the `matches` view, and the tracked players (`GO_PLAYERS`).
 - The full schema, via `go:embed sqlc/schema.sql`. The whole schema is shown, including the `conversations` and `turns` tables; the prompt simply tells the model those hold the chat app's own history and to ignore them for game questions. (There is no clever trimming; reads are read-only anyway, and the app is public by choice.)
 
 Only durable facts go in. Precomputed analysis findings are deliberately left out, so every answer is recomputed from live data. The prompt also tells the model to use Postgres `now()` and `current_date` for relative dates, so today's date never has to be injected.
@@ -96,7 +102,7 @@ Answer style (instructed in the prompt): answer-first and concise; use markdown 
 
 - Provider is OpenRouter (OpenAI-compatible chat completions with tool calling), called over plain `net/http`. No SDK.
 - Endpoint `https://openrouter.ai/api/v1/chat/completions`, header `Authorization: Bearer ${OPENROUTER_API_KEY}`.
-- Model from `OPENROUTER_MODEL`, default `deepseek/deepseek-chat`. The only hard requirement is tool calling, since the loop depends on it. Note: `deepseek-r1`-style reasoning models have unreliable tool support and are not recommended.
+- Model from `OPENROUTER_MODEL` (for example `deepseek/deepseek-v4-flash`). There is no default; the variable is required like every other. The only hard requirement is tool calling, since the loop depends on it. Note: `deepseek-r1`-style reasoning models have unreliable tool support and are not recommended.
 
 ## Output and Rendering
 
@@ -184,7 +190,7 @@ Stage 1  rust:1-bookworm      -> cargo build --release  -> /sc2json (copied to /
 Stage 2  golang:1.26-bookworm -> installs air + sqlc, warms the module cache, sets WORKDIR /sources
 ```
 
-There is no slim prebuilt-binary runtime stage. The image carries the Go toolchain, and the app is built from the mounted source at container start. `entrypoint.sh` switches on `ENVIRONMENT`:
+There is no slim prebuilt-binary runtime stage. The image carries the Go toolchain, and the app is built from the mounted source at container start. `entrypoint.sh` switches on `GO_ENVIRONMENT`:
 
 - `development`: for the serve action it runs `air` (config `.air.toml`), which regenerates `models/` with sqlc, rebuilds the binary, and restarts on changes to `.go`, `.sql`, `.css`, `.html`, or `.js` files. Frontend files are watched because they are `go:embed`'d into the binary.
 - `production` (and all one-shot cli actions): `sqlc generate`, `go build`, then exec the binary once.
@@ -193,9 +199,9 @@ The Rust sidecar is built once in stage 1; only the Go side rebuilds at runtime.
 
 Postgres init: `sqlc/schema.sql` is mounted into the db container's `/docker-entrypoint-initdb.d/schema.sql`, run once on first boot of an empty data directory. The schema is a single file containing both the game tables and the chat tables.
 
-Volumes: Postgres data is bind-mounted to `./postgres` on the host (persists chats and games; delete the directory to start fresh). `${REPLAYS_HOST}:/replays:ro` mounts the host replay directory read-only on the cli service. `REPLAYS` inside the container is fixed to `/replays`; the host path stays in `.env` as `REPLAYS_HOST` for Compose substitution.
+Volumes: Postgres data is bind-mounted to `./postgres` on the host at `/var/lib/postgresql` (the layout postgres:18 expects; data lands in a version subdirectory). Delete the directory to start fresh. `GO_REPLAYS` is bind-mounted read-only on the cli service at the same path it has on the host (`source` and `target` are both `${GO_REPLAYS}`), so the path the app walks equals the path you set - there is no separate container path to reason about.
 
-Compose passes env directly via the `environment:` blocks; `.env` is read by Compose for `${VAR}` substitution, not copied into the image (godotenv's `Load()` no-ops when `.env` is absent, falling back to container env). Hostnames are service names (`postgres`). `ui` publishes `127.0.0.1:${PORT:-8080}:8080` so it is only reachable through a reverse proxy. `ui` and `cli` depend on `postgres` with `condition: service_healthy` (healthcheck = `pg_isready`). OpenRouter is the only outbound dependency.
+The compose layer does no per-variable mapping. Each service gets `env_file: .env`, which hands the file to the container verbatim; the Go process then reads its settings from those variables (and `godotenv` loads `/sources/.env` as well, since the repo is mounted). `entrypoint.sh` reads `GO_ENVIRONMENT` from that same environment. The only `${...}` interpolation in the compose file is `GO_PORT` (the published port) and `GO_REPLAYS` (the bind-mount path), both read straight from `.env` with no defaults. Hostnames are service names (`POSTGRES_HOST=postgres`). `ui` publishes `127.0.0.1:${GO_PORT}:${GO_PORT}` so it is only reachable through a reverse proxy. `ui` and `cli` depend on `postgres` with `condition: service_healthy` (healthcheck = `pg_isready`). OpenRouter is the only outbound dependency.
 
 ## Locked Settings
 
@@ -204,11 +210,11 @@ Compose passes env directly via the `environment:` blocks; `.env` is read by Com
 - Chats: shared and public; the sidebar lists every conversation; conversation ids are BIGSERIAL; no browser-local storage.
 - Conversation title: first 50 characters of the opening prompt.
 - Containers: services named `postgres`, `ui`, `cli`; everything runs in Docker, source mounted at `/sources`.
-- Environment: `ENVIRONMENT=development` runs the serve action under air (hot reload); `production` builds once and runs.
+- Environment: `GO_ENVIRONMENT=development` runs the serve action under air (hot reload); `production` builds once and runs.
 - Failures: failed chats are kept; the error shows inline as the assistant reply.
 - History: full raw thread (all SQL tool calls and rows) resent every turn.
 - Markdown to HTML: server-side (goldmark with GFM, safe mode).
-- Model: `deepseek/deepseek-chat` by default, overridable via `OPENROUTER_MODEL`, must support tool calling.
+- Model: set via `OPENROUTER_MODEL` (e.g. `deepseek/deepseek-v4-flash`); no default, must support tool calling.
 - Output: rendered markdown answer only; no SQL shown in the UI.
 - Postgres: `postgres:18.4`, data bind-mounted to `./postgres`.
 - Query policy: at least one `run_sql` forced per question; cap of 3 `run_sql` calls per question. No row caps; the timeout is the only ceiling.

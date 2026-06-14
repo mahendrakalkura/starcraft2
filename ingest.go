@@ -45,10 +45,6 @@ func buildFiles(paths []string) ([]string, error) {
 }
 
 func ingest(ctx context.Context, application *Application, force bool) error {
-	if len(application.Settings.Replays) == 0 {
-		return fmt.Errorf("REPLAYS environment variable is required for ingest")
-	}
-
 	sidecar, err := locateSidecar()
 	if err != nil {
 		return fmt.Errorf("locateSidecar(): %w", err)
@@ -62,7 +58,7 @@ func ingest(ctx context.Context, application *Application, force bool) error {
 		fmt.Println("force: cleared all imported data")
 	}
 
-	files, err := buildFiles(application.Settings.Replays)
+	files, err := buildFiles(application.Settings.GoReplays)
 	if err != nil {
 		return fmt.Errorf("buildFiles(): %w", err)
 	}
@@ -104,7 +100,7 @@ func ingest(ctx context.Context, application *Application, force bool) error {
 	counts := sync.Map{}
 
 	wg := sync.WaitGroup{}
-	for range application.Settings.Workers {
+	for range application.Settings.GoWorkers {
 		wg.Go(func() {
 			for path := range input {
 				status, e := processFile(ctx, application, sidecar, path)
@@ -152,7 +148,7 @@ func processFile(ctx context.Context, application *Application, sidecar string, 
 		return statusSkippedAI, nil
 	}
 
-	resolveResults(replay, application.Settings.Players)
+	resolveResults(replay, application.Settings.GoPlayers)
 
 	print := fingerprint(replay)
 

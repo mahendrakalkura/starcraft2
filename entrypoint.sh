@@ -2,7 +2,7 @@
 set -e
 
 # Development serve: air rebuilds and restarts on source changes.
-if [ "$ENVIRONMENT" = "development" ] && [ "$1" = "-action" ] && [ "$2" = "serve" ]; then
+if [ "$GO_ENVIRONMENT" = "development" ] && [ "$1" = "-action" ] && [ "$2" = "serve" ]; then
     exec air
 fi
 
