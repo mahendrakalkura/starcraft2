@@ -1,0 +1,7 @@
+.git
+.gitignore
+sidecar/target
+main
+sc2json
+*.db
+.env

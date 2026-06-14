@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:18.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: starcraft2
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sqlc/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sqlc/chat_schema.sql:/docker-entrypoint-initdb.d/02-chat.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starcraft2"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: ["-action", "serve"]
+    environment:
+      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/starcraft2?sslmode=disable
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat}
+      PORT: "8080"
+      PLAYERS: ${PLAYERS:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cli:
+    build: .
+    profiles: ["cli"]
+    environment:
+      DATABASE: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/starcraft2?sslmode=disable
+      PLAYERS: ${PLAYERS:-}
+      REPLAYS: /replays
+    volumes:
+      - ${REPLAYS_HOST:-./replays}:/replays:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

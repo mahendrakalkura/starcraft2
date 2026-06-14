@@ -1,0 +1,6 @@
+models
+sidecar/target
+
+.env
+main
+sc2json
