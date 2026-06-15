@@ -1,12 +1,13 @@
 # Deploy
 
-How to install this on a Linux server. This guide assumes the server already has a working nginx and a valid Let's Encrypt certificate for the domain you will serve from. We only add a reverse proxy block that forwards to the app container.
+How to install this on a Linux server. This guide assumes the server already has a working nginx and a valid Let's Encrypt certificate for the domain you will serve from. The repo ships two config files for the server: `nginx.conf` (a site you symlink into nginx) and `supervisor.conf` (a supervisor program that runs the Docker stack).
 
 The app has no authentication and is wide open by design. It must never face the internet directly; nginx (with TLS, and any access control you add) should be the only public entry point. The published port (`GO_PORT`) binds on all interfaces, so restrict it with a firewall and let nginx reach the app over the loopback address.
 
 ## Prerequisites
 
 - Docker Engine with the Docker Compose plugin.
+- supervisor (`apt install supervisor`).
 - nginx already serving your domain over HTTPS (Let's Encrypt certificate in place).
 - An OpenRouter API key.
 - Replays already on the server (or a directory you will copy them into).
@@ -34,15 +35,20 @@ Every variable in `.env` is required and there are no defaults; the app prints w
 - `OPENROUTER_MODEL` - a tool-calling model, e.g. `deepseek/deepseek-v4-flash`.
 - `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `POSTGRES_USER` - the database settings (`POSTGRES_HOST` is the compose service name, `postgres`). Use a strong password. The app builds its connection string from these.
 
-## 3. Start the stack
+## 3. Run the stack under supervisor
+
+`supervisor.conf` runs `docker compose up --build` from `/opt/starcraft2` and keeps it running across reboots and crashes. Install it (edit `directory` in the file if you cloned elsewhere):
 
 ```bash
-docker compose up -d --build
+sudo cp supervisor.conf /etc/supervisor/conf.d/starcraft2.conf
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl status starcraft2
 ```
 
-This starts `postgres` and `ui`. On first boot the database initializes from `sqlc/schema.sql`. The `ui` container builds the Go binary at startup and serves on `${GO_PORT}` (on a server, run it detached with `docker compose up -d --build`, since `make up` stays in the foreground).
+The first start builds the image and initializes the database from `sqlc/schema.sql`. Follow progress with `tail -f /var/log/starcraft2.log`.
 
-Import replays:
+Import replays once the stack is up:
 
 ```bash
 docker compose run --rm cli -action ingest
@@ -56,38 +62,23 @@ curl -sI http://127.0.0.1:${GO_PORT} | head -1
 
 ## 4. nginx reverse proxy
 
-Add a `location` block to the existing HTTPS server block for your domain (match the port to `GO_PORT`):
-
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    # The agent loop can take a while; allow long responses.
-    proxy_read_timeout 130s;
-}
-```
-
-The app's overall request deadline is 120s, so a `proxy_read_timeout` slightly above that avoids nginx cutting off a slow answer.
-
-Reload nginx:
+Edit `nginx.conf` - set `server_name` and the two `ssl_certificate` paths for your domain, and match `proxy_pass` to your `GO_PORT`. Then symlink it into the enabled sites and reload:
 
 ```bash
+sudo ln -s /opt/starcraft2/nginx.conf /etc/nginx/sites-enabled/starcraft2
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Your domain now serves the UI over the existing TLS certificate.
+`nginx.conf` redirects HTTP to HTTPS and proxies HTTPS to the app over loopback. Its `proxy_read_timeout` is 130s, just above the app's 120s request deadline, so a slow agent answer is not cut off. Your domain now serves the UI over the existing TLS certificate.
 
 ## Operating
 
 ```bash
-docker compose ps                 # status
-docker compose logs -f ui         # follow the UI logs
-docker compose pull && docker compose up -d --build   # not needed; rebuild after pulling code
-git pull && docker compose up -d --build              # deploy a new version
+sudo supervisorctl restart starcraft2   # restart the stack
+sudo supervisorctl stop starcraft2      # stop the stack
+docker compose ps                       # container status
+docker compose logs -f ui               # follow the UI logs
+git pull && sudo supervisorctl restart starcraft2   # deploy a new version (rebuilds)
 ```
 
 Reset the database (drops all games and saved chats):
