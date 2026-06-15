@@ -62,14 +62,14 @@ curl -sI http://127.0.0.1:${GO_PORT} | head -1
 
 ## 4. nginx reverse proxy
 
-Edit `nginx.conf` - set `server_name` and the two `ssl_certificate` paths for your domain, and match `proxy_pass` to your `GO_PORT`. Then symlink it into the enabled sites and reload:
+`nginx.conf` is preconfigured for `starcraft2.mahendrakalkura.com` and uses certbot's shared `options-ssl-nginx.conf` and `ssl-dhparams.pem` (already on the server). It redirects HTTP to HTTPS and proxies HTTPS to the app on port 8080; its `proxy_read_timeout` is 130s, just above the app's 120s request deadline, so a slow agent answer is not cut off. Adjust the domain, the `proxy_pass` port, or the cert paths only if they differ, then symlink it into the enabled sites and reload:
 
 ```bash
-sudo ln -s /opt/starcraft2/nginx.conf /etc/nginx/sites-enabled/starcraft2
+sudo ln -s /opt/starcraft2/nginx.conf /etc/nginx/sites-enabled/starcraft2.mahendrakalkura.com.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-`nginx.conf` redirects HTTP to HTTPS and proxies HTTPS to the app over loopback. Its `proxy_read_timeout` is 130s, just above the app's 120s request deadline, so a slow agent answer is not cut off. Your domain now serves the UI over the existing TLS certificate.
+Your domain now serves the UI over the existing TLS certificate.
 
 ## Operating
 
