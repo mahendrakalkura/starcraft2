@@ -94,8 +94,7 @@ body {
 }
 
 .message {
-  max-width: 760px;
-  margin: 0 auto 16px;
+  margin: 0 0 16px;
   padding: 12px 16px;
   border-radius: 8px;
   line-height: 1.5;

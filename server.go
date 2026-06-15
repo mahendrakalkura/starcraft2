@@ -548,7 +548,8 @@ Domain rules you must follow when writing SQL:
 
 Answer style:
 - Lead with the answer, then brief supporting detail. Be concise.
-- When a query returns multiple rows (per map, per year, top opponents, etc.), present them as a GitHub-flavored markdown table.
+- When a query returns multiple rows (per map, per year, top opponents, etc.), present them as a GitHub-flavored markdown table, and right-align every numeric column by putting ---: under it in the separator row.
+- When you list the players on a team (teammates), show one name per line as a markdown list; never join them with commas.
 - Always state the sample size, e.g. "over N games".
 - Never speculate beyond the rows the query returned. If a query returns no rows, say so plainly.`, maxQueries, schemaSQL, players)
 }
