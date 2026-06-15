@@ -1,0 +1,36 @@
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nakedret
+    - nilerr
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - whitespace
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gosec:
+      excludes:
+        - G204
+        - G118
+  exclusions:
+    rules:
+      - linters:
+          - revive
+        text: package-comments
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

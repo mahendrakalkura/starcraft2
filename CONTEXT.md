@@ -165,7 +165,7 @@ Three vanilla files at the repo root, no framework, no CDN, embedded into the Go
 - `index.css`: BEM-named blocks (`sidebar`, `conversation`, `chat`, `message`, `composer`) with element (`__`) and modifier (`--`) classes. Static singletons keep `id`s for JS hooks; styling is class-based.
 - `index.js`: ES module, arrow functions throughout. Loads the conversation list (newest first, delete with a confirm), starts a new chat, loads a conversation, sends an ask, shows a thinking message during the wait, and renders an error inline as the assistant reply when a question fails. No browser-local storage; the request is blocking, no streaming.
 
-The three files are linted and formatted with biome (`biome.json`, 2-space indent, 120-column wrap, recommended rules). biome is installed in the image, so `make lint` (gofmt + go vet + biome, all in a one-off container) needs nothing on the host. The markdown-to-HTML step is server-side so the single JS file needs no markdown library.
+The three files are linted and formatted with biome (`biome.json`, 2-space indent, 120-column wrap, recommended rules). The Go code is linted with golangci-lint (`.golangci.yml`: a curated linter set plus gofumpt/goimports formatting). Both tools are installed in the image, so `make lint` (golangci-lint + biome in a one-off container) needs nothing on the host. The markdown-to-HTML step is server-side so the single JS file needs no markdown library.
 
 ## Dockerization
 
@@ -187,7 +187,7 @@ Image (multi-stage Dockerfile):
 
 ```
 Stage 1  rust:1-bookworm      -> cargo build --release  -> /sc2json (copied to /usr/local/bin/sc2json)
-Stage 2  golang:1.26-bookworm -> installs air + sqlc + biome, warms the module cache, sets WORKDIR /sources
+Stage 2  golang:1.26-bookworm -> installs air + sqlc + golangci-lint + biome, warms the module cache, sets WORKDIR /sources
 ```
 
 There is no slim prebuilt-binary runtime stage. The image carries the Go toolchain, and the app is built from the mounted source at container start. `entrypoint.sh` switches on `GO_ENVIRONMENT`:

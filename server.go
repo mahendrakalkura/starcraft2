@@ -8,13 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"main/models"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"main/models"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -109,7 +108,11 @@ func serve(ctx context.Context, application *Application) error {
 	mux.HandleFunc("GET /api/conversation", handleConversation(application))
 	mux.HandleFunc("POST /api/conversation/delete", handleDelete(application))
 
-	server := &http.Server{Addr: fmt.Sprintf(":%s", application.Settings.GoPort), Handler: mux}
+	server := &http.Server{
+		Addr:              fmt.Sprintf(":%s", application.Settings.GoPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -131,7 +134,7 @@ func serve(ctx context.Context, application *Application) error {
 
 func handleConversations(application *Application) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		rows, err := application.Queries.ConversationList(request.Context())
+		rows, err := application.Queries.ConversationsSelectAll(request.Context())
 		if err != nil {
 			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -177,14 +180,14 @@ func handleAsk(application *Application) http.HandlerFunc {
 		conversationID := body.ConversationID
 		title := promptTitle(body.Prompt)
 		if conversationID == 0 {
-			conversation, e := application.Queries.ConversationInsertOne(ctx, title)
+			conversation, e := application.Queries.ConversationsInsert(ctx, title)
 			if e != nil {
 				writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": e.Error()})
 				return
 			}
 			conversationID = conversation.ID
 		} else {
-			conversation, e := application.Queries.ConversationGet(ctx, conversationID)
+			conversation, e := application.Queries.ConversationsSelectByID(ctx, conversationID)
 			if e != nil {
 				writeJSON(writer, http.StatusNotFound, map[string]string{"error": "conversation not found"})
 				return
@@ -207,7 +210,7 @@ func handleAsk(application *Application) http.HandlerFunc {
 			}
 		}
 
-		err = application.Queries.ConversationTouch(ctx, conversationID)
+		err = application.Queries.ConversationsUpdate(ctx, conversationID)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -228,13 +231,13 @@ func handleConversation(application *Application) http.HandlerFunc {
 			return
 		}
 
-		conversation, err := application.Queries.ConversationGet(request.Context(), id)
+		conversation, err := application.Queries.ConversationsSelectByID(request.Context(), id)
 		if err != nil {
 			writeJSON(writer, http.StatusNotFound, map[string]string{"error": "conversation not found"})
 			return
 		}
 
-		turns, err := application.Queries.TurnsByConversation(request.Context(), id)
+		turns, err := application.Queries.TurnsSelectByConversation(request.Context(), id)
 		if err != nil {
 			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -277,7 +280,7 @@ func handleDelete(application *Application) http.HandlerFunc {
 			return
 		}
 
-		err = application.Queries.ConversationDelete(request.Context(), body.ID)
+		err = application.Queries.ConversationsDelete(request.Context(), body.ID)
 		if err != nil {
 			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -287,9 +290,9 @@ func handleDelete(application *Application) http.HandlerFunc {
 }
 
 func runAgent(ctx context.Context, application *Application, conversationID int64) (string, error) {
-	turns, err := application.Queries.TurnsByConversation(ctx, conversationID)
+	turns, err := application.Queries.TurnsSelectByConversation(ctx, conversationID)
 	if err != nil {
-		return "", fmt.Errorf("application.Queries.TurnsByConversation(): %w", err)
+		return "", fmt.Errorf("application.Queries.TurnsSelectByConversation(): %w", err)
 	}
 
 	messages := []orMessage{{Role: "system", Content: systemPrompt(application.Settings)}}
@@ -454,7 +457,7 @@ func persistTurn(ctx context.Context, application *Application, conversationID i
 		id = pgtype.Text{String: toolCallID, Valid: true}
 	}
 
-	err := application.Queries.TurnInsertOne(ctx, models.TurnInsertOneParams{
+	err := application.Queries.TurnsInsert(ctx, models.TurnsInsertParams{
 		ConversationID: conversationID,
 		Role:           role,
 		Content:        content,
@@ -462,7 +465,7 @@ func persistTurn(ctx context.Context, application *Application, conversationID i
 		ToolCallID:     id,
 	})
 	if err != nil {
-		return fmt.Errorf("application.Queries.TurnInsertOne(): %w", err)
+		return fmt.Errorf("application.Queries.TurnsInsert(): %w", err)
 	}
 	return nil
 }

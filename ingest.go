@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"main/models"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
-
-	"main/models"
 )
 
 const (
@@ -23,7 +22,7 @@ func buildFiles(paths []string) ([]string, error) {
 	files := []string{}
 
 	for _, path := range paths {
-		err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(path, func(path string, _ os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -150,11 +149,11 @@ func processFile(ctx context.Context, application *Application, sidecar string, 
 
 	resolveResults(replay, application.Settings.GoPlayers)
 
-	print := fingerprint(replay)
+	fingerprintValue := fingerprint(replay)
 
-	exists, err := application.Queries.GamesFingerprintExists(ctx, print)
+	exists, err := application.Queries.GamesExistsByFingerprint(ctx, fingerprintValue)
 	if err != nil {
-		return "", fmt.Errorf("application.Queries.GamesFingerprintExists(): %w", err)
+		return "", fmt.Errorf("application.Queries.GamesExistsByFingerprint(): %w", err)
 	}
 	if exists {
 		err = recordFile(ctx, application, path, statusDuplicate, replay.ParserVersion)
@@ -164,7 +163,7 @@ func processFile(ctx context.Context, application *Application, sidecar string, 
 		return statusDuplicate, nil
 	}
 
-	err = insertReplay(ctx, application, path, replay, print)
+	err = insertReplay(ctx, application, path, replay, fingerprintValue)
 	if err != nil {
 		if isFingerprintConflict(err) {
 			e := recordFile(ctx, application, path, statusDuplicate, replay.ParserVersion)
@@ -180,14 +179,14 @@ func processFile(ctx context.Context, application *Application, sidecar string, 
 }
 
 func recordFile(ctx context.Context, application *Application, path string, status string, parserVersion string) error {
-	fiop := models.FilesInsertOneParams{
+	fileParams := models.FilesInsertParams{
 		Path:          path,
 		ParserVersion: parserVersion,
 		Status:        status,
 	}
-	_, err := application.Queries.FilesInsertOne(ctx, fiop)
+	_, err := application.Queries.FilesInsert(ctx, fileParams)
 	if err != nil {
-		return fmt.Errorf("application.Queries.FilesInsertOne(): %w", err)
+		return fmt.Errorf("application.Queries.FilesInsert(): %w", err)
 	}
 
 	return nil

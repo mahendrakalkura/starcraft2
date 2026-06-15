@@ -5,6 +5,6 @@ if [ "$GO_ENVIRONMENT" = "development" ] && [ "$1" = "-action" ] && [ "$2" = "se
     exec air
 else
     sqlc generate
-    go build -buildvcs=false -o /tmp/main .
-    exec /tmp/main "$@"
+    go build -buildvcs=false -o main .
+    exec ./main "$@"
 fi

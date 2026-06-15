@@ -1,20 +1,19 @@
-const conversationList = document.getElementById("conversations");
-const messageList = document.getElementById("messages");
+const conversations = document.getElementById("conversations");
+const messages = document.getElementById("messages");
 const promptInput = document.getElementById("prompt");
-const sendButton = document.getElementById("send");
-const chatForm = document.getElementById("composer");
-const newChatButton = document.getElementById("new-chat");
+const send = document.getElementById("send");
+const form = document.getElementById("composer");
 
 let currentConversationId = null;
 let pending = false;
 
 const loadConversations = async () => {
   const response = await fetch("/api/conversations");
-  const conversations = await response.json();
+  const list = await response.json();
 
-  conversationList.innerHTML = "";
-  for (const conversation of conversations) {
-    conversationList.append(renderConversation(conversation));
+  conversations.innerHTML = "";
+  for (const conversation of list) {
+    conversations.append(renderConversation(conversation));
   }
 };
 
@@ -51,14 +50,14 @@ const addMessage = (role, content, asHTML) => {
     message.textContent = content;
   }
 
-  messageList.append(message);
-  messageList.scrollTop = messageList.scrollHeight;
+  messages.append(message);
+  messages.scrollTop = messages.scrollHeight;
   return message;
 };
 
 const newChat = () => {
   currentConversationId = null;
-  messageList.innerHTML = "";
+  messages.innerHTML = "";
   promptInput.focus();
   loadConversations();
 };
@@ -71,7 +70,7 @@ const openConversation = async (id) => {
 
   const conversation = await response.json();
   currentConversationId = conversation.id;
-  messageList.innerHTML = "";
+  messages.innerHTML = "";
   for (const exchange of conversation.exchanges) {
     addMessage("user", exchange.prompt, false);
     addMessage("assistant", exchange.html, true);
@@ -99,7 +98,7 @@ const deleteConversation = async (id) => {
 
 const ask = async (prompt) => {
   pending = true;
-  sendButton.disabled = true;
+  send.disabled = true;
   promptInput.disabled = true;
   addMessage("user", prompt, false);
   const thinking = addMessage("thinking", "Thinking...", false);
@@ -125,13 +124,13 @@ const ask = async (prompt) => {
     addMessage("assistant", `Request failed: ${error}`, false);
   } finally {
     pending = false;
-    sendButton.disabled = false;
+    send.disabled = false;
     promptInput.disabled = false;
     promptInput.focus();
   }
 };
 
-chatForm.addEventListener("submit", (event) => {
+form.addEventListener("submit", (event) => {
   event.preventDefault();
   if (pending) {
     return;
@@ -149,10 +148,10 @@ chatForm.addEventListener("submit", (event) => {
 promptInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
-    chatForm.requestSubmit();
+    form.requestSubmit();
   }
 });
 
-newChatButton.onclick = newChat;
+document.getElementById("new-chat").onclick = newChat;
 
 loadConversations();

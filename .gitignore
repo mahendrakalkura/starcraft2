@@ -4,3 +4,4 @@ sidecar/target
 tmp
 
 .env
+main

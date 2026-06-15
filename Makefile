@@ -14,7 +14,7 @@ ingest:
 	docker compose run --rm cli -action ingest
 
 lint:
-	docker compose run --rm --no-deps --entrypoint sh cli -c 'sqlc generate && test -z "$$(gofmt -l *.go)" && go vet ./... && biome check index.css index.html index.js'
+	docker compose run --rm --no-deps --entrypoint sh cli -c 'sqlc generate && golangci-lint run ./... && biome check index.css index.html index.js'
 
 reset:
 	docker compose exec -T postgres psql -U postgres -d starcraft2 < sqlc/schema.sql

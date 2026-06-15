@@ -1,24 +1,24 @@
--- name: ConversationDelete :exec
+-- name: ConversationsDelete :exec
 DELETE FROM conversations WHERE id = $1;
 
--- name: ConversationGet :one
-SELECT id, title, created_at, updated_at FROM conversations WHERE id = $1;
-
--- name: ConversationInsertOne :one
+-- name: ConversationsInsert :one
 INSERT INTO conversations (title)
 VALUES ($1)
 RETURNING id, title, created_at, updated_at;
 
--- name: ConversationList :many
+-- name: ConversationsSelectAll :many
 SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC;
 
--- name: ConversationTouch :exec
+-- name: ConversationsSelectByID :one
+SELECT id, title, created_at, updated_at FROM conversations WHERE id = $1;
+
+-- name: ConversationsUpdate :exec
 UPDATE conversations SET updated_at = now() WHERE id = $1;
 
 -- name: FilesDeleteAll :exec
 DELETE FROM files;
 
--- name: FilesInsertOne :one
+-- name: FilesInsert :one
 INSERT INTO files (path, parser_version, status)
 VALUES ($1, $2, $3)
 RETURNING id;
@@ -26,10 +26,10 @@ RETURNING id;
 -- name: FilesSelectPaths :many
 SELECT path FROM files;
 
--- name: GamesFingerprintExists :one
+-- name: GamesExistsByFingerprint :one
 SELECT EXISTS(SELECT 1 FROM games WHERE fingerprint = $1);
 
--- name: GamesInsertOne :one
+-- name: GamesInsert :one
 INSERT INTO games (file_id, amm, competitive, duration, fingerprint, map, mode, played_at, version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id;
@@ -38,7 +38,7 @@ RETURNING id;
 INSERT INTO messages (player_id, recipient, text, tick)
 VALUES ($1, $2, $3, $4);
 
--- name: PlayersInsertOne :one
+-- name: PlayersInsert :one
 INSERT INTO players (game_id, apm, clan, color, mmr, name, number, race_assigned, race_selected, result, team)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING id;
@@ -90,11 +90,11 @@ INSERT INTO stats
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41);
 
--- name: TurnInsertOne :exec
+-- name: TurnsInsert :exec
 INSERT INTO turns (conversation_id, role, content, tool_calls, tool_call_id)
 VALUES ($1, $2, $3, $4, $5);
 
--- name: TurnsByConversation :many
+-- name: TurnsSelectByConversation :many
 SELECT id, conversation_id, role, content, tool_calls, tool_call_id, created_at
 FROM turns
 WHERE conversation_id = $1

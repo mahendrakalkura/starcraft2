@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-
 	"main/models"
+	"os"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,17 +26,17 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 
 	queries := application.Queries.WithTx(tx)
 
-	fileParams := models.FilesInsertOneParams{
+	fileParams := models.FilesInsertParams{
 		Path:          path,
 		ParserVersion: replay.ParserVersion,
 		Status:        statusImported,
 	}
-	fileID, err := queries.FilesInsertOne(ctx, fileParams)
+	fileID, err := queries.FilesInsert(ctx, fileParams)
 	if err != nil {
-		return fmt.Errorf("queries.FilesInsertOne(): %w", err)
+		return fmt.Errorf("queries.FilesInsert(): %w", err)
 	}
 
-	gameParams := models.GamesInsertOneParams{
+	gameParams := models.GamesInsertParams{
 		FileID:      fileID,
 		Amm:         replay.Game.Amm,
 		Competitive: replay.Game.Competitive,
@@ -48,13 +47,13 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 		PlayedAt:    pgtype.Timestamptz{Time: replay.Game.PlayedAt, Valid: true},
 		Version:     replay.Game.Version,
 	}
-	gameID, err := queries.GamesInsertOne(ctx, gameParams)
+	gameID, err := queries.GamesInsert(ctx, gameParams)
 	if err != nil {
-		return fmt.Errorf("queries.GamesInsertOne(): %w", err)
+		return fmt.Errorf("queries.GamesInsert(): %w", err)
 	}
 
 	for _, player := range replay.Players {
-		playerParams := models.PlayersInsertOneParams{
+		playerParams := models.PlayersInsertParams{
 			GameID:       gameID,
 			Apm:          player.Apm,
 			Clan:         player.Clan,
@@ -67,9 +66,9 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 			Result:       player.Result,
 			Team:         player.Team,
 		}
-		playerID, e := queries.PlayersInsertOne(ctx, playerParams)
+		playerID, e := queries.PlayersInsert(ctx, playerParams)
 		if e != nil {
-			return fmt.Errorf("queries.PlayersInsertOne(): %w", e)
+			return fmt.Errorf("queries.PlayersInsert(): %w", e)
 		}
 
 		messageParams := make([]models.MessagesInsertManyParams, len(player.Messages))

@@ -10,6 +10,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	action := flag.String("action", "ingest", "Action: ingest, sample, or serve")
 	file := flag.String("file", "", "Replay file path (required for sample action)")
 	force := flag.Bool("force", false, "Reprocess all replay files from scratch (ingest action)")
@@ -20,23 +28,18 @@ func main() {
 
 	application, err := NewApplication(ctx)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer application.Close()
 
 	switch *action {
 	case "ingest":
-		err = ingest(ctx, application, *force)
+		return ingest(ctx, application, *force)
 	case "sample":
-		err = sample(ctx, *file)
+		return sample(ctx, *file)
 	case "serve":
-		err = serve(ctx, application)
+		return serve(ctx, application)
 	default:
-		err = fmt.Errorf("unknown action %q", *action)
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return fmt.Errorf("unknown action %q", *action)
 	}
 }

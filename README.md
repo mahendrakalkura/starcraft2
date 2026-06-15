@@ -84,7 +84,7 @@ make build    # docker compose build
 make up        # build and start postgres + ui (foreground, streams logs)
 make down      # stop and remove containers
 make ingest    # one-shot replay import
-make lint      # gofmt + go vet + biome, all inside a one-off container
+make lint      # golangci-lint + biome, all inside a one-off container
 make sqlc      # regenerate models/ (runs sqlc via docker compose run)
 make reset     # re-apply sqlc/schema.sql to the running postgres (WARNING: drops all data)
 make clean     # stop the stack and delete the ./postgres data directory
