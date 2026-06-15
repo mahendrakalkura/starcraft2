@@ -15,9 +15,6 @@ SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC;
 -- name: ConversationTouch :exec
 UPDATE conversations SET updated_at = now() WHERE id = $1;
 
--- name: FilesCountByStatus :many
-SELECT status, COUNT(*) AS count FROM files GROUP BY status ORDER BY status;
-
 -- name: FilesDeleteAll :exec
 DELETE FROM files;
 
@@ -29,9 +26,6 @@ RETURNING id;
 -- name: FilesSelectPaths :many
 SELECT path FROM files;
 
--- name: GamesCount :one
-SELECT COUNT(*) FROM games;
-
 -- name: GamesFingerprintExists :one
 SELECT EXISTS(SELECT 1 FROM games WHERE fingerprint = $1);
 
@@ -40,23 +34,14 @@ INSERT INTO games (file_id, amm, competitive, duration, fingerprint, map, mode, 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id;
 
--- name: MessagesCount :one
-SELECT COUNT(*) FROM messages;
-
 -- name: MessagesInsertMany :copyfrom
 INSERT INTO messages (player_id, recipient, text, tick)
 VALUES ($1, $2, $3, $4);
-
--- name: PlayersCount :one
-SELECT COUNT(*) FROM players;
 
 -- name: PlayersInsertOne :one
 INSERT INTO players (game_id, apm, clan, color, mmr, name, number, race_assigned, race_selected, result, team)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING id;
-
--- name: StatsCount :one
-SELECT COUNT(*) FROM stats;
 
 -- name: StatsInsertMany :copyfrom
 INSERT INTO stats
@@ -114,9 +99,6 @@ SELECT id, conversation_id, role, content, tool_calls, tool_call_id, created_at
 FROM turns
 WHERE conversation_id = $1
 ORDER BY id;
-
--- name: UnitsCount :one
-SELECT COUNT(*) FROM units;
 
 -- name: UnitsInsertMany :copyfrom
 INSERT INTO units (player_id, action, name, tick, x, y)

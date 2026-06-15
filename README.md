@@ -16,17 +16,16 @@ git clone <repo-url> starcraft2
 cd starcraft2
 
 cp .env.sample .env        # then fill in every variable (see Configuration)
-make up                    # build the image and start postgres + ui
+make up                    # build and start postgres + ui (streams logs, stays in the foreground)
 ```
 
 `.env.sample` ships with `GO_ENVIRONMENT=development`, so the `ui` container runs under [air](https://github.com/air-verse/air): edit any `.go`, `.sql`, or frontend file and the server rebuilds and restarts automatically. The repo is mounted into the container at `/sources`, and `models/` is generated in-container on startup (run `make sqlc` if you also want it on the host for your editor).
 
-Open http://localhost:8080 and ask a question. The UI is published on `127.0.0.1` only.
+`make up` runs in the foreground so you can watch the logs; open http://localhost:8080 in a browser and ask a question. The UI is published on `${GO_PORT}` on all interfaces, so put it behind a reverse proxy or firewall in any shared environment (it has no authentication).
 
-To import replays (the `cli` service is on a profile, so it does not start with `make up`):
+To import replays (from a second terminal; the `cli` service is on a profile, so it does not start with `make up`):
 
 ```bash
-make up                    # postgres must be running first
 make ingest                # docker compose run --rm cli -action ingest
 ```
 
@@ -65,7 +64,7 @@ The Go process builds its Postgres connection string from the `POSTGRES_*` value
 +----------+-----------------------------------+----------------------------+
 | Service  | What it runs                      | Lifecycle                  |
 +----------+-----------------------------------+----------------------------+
-| cli      | main -action ingest|sample|...    | on-demand (compose run)    |
+| cli      | main -action ingest|sample        | on-demand (compose run)    |
 | postgres | postgres:18.4                     | always up, healthchecked   |
 | ui       | main -action serve                | always up, depends on db   |
 +----------+-----------------------------------+----------------------------+
@@ -75,7 +74,6 @@ The CLI actions:
 
 ```bash
 make ingest                                          # import replays
-docker compose run --rm cli -action statistics       # row counts per table
 docker compose run --rm cli -action sample -file /path/to/some.SC2Replay   # pretty-print parsed JSON
 ```
 
@@ -83,11 +81,13 @@ docker compose run --rm cli -action sample -file /path/to/some.SC2Replay   # pre
 
 ```
 make build    # docker compose build
-make up        # build and start postgres + ui (detached)
+make up        # build and start postgres + ui (foreground, streams logs)
 make down      # stop and remove containers
 make ingest    # one-shot replay import
-make sqlc      # regenerate models/ on the host (runs sqlc in a container)
+make lint      # gofmt + go vet + biome, all inside a one-off container
+make sqlc      # regenerate models/ (runs sqlc via docker compose run)
 make reset     # re-apply sqlc/schema.sql to the running postgres (WARNING: drops all data)
+make clean     # stop the stack and delete the ./postgres data directory
 ```
 
 ## Reset the database
@@ -99,7 +99,7 @@ make reset
 make ingest
 ```
 
-To start completely fresh, stop the stack and delete the bind-mounted data directory (`./postgres`), then `make up`.
+To start completely fresh, run `make clean` (stops the stack and removes the bind-mounted `./postgres` directory), then `make up`.
 
 ## License
 

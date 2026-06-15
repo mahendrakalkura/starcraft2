@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"main/models"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -17,22 +19,25 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 		return fmt.Errorf("application.Database.Begin(): %w", err)
 	}
 	defer func() {
-		_ = tx.Rollback(ctx)
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}()
 
-	q := application.Queries.WithTx(tx)
+	queries := application.Queries.WithTx(tx)
 
-	fiop := models.FilesInsertOneParams{
+	fileParams := models.FilesInsertOneParams{
 		Path:          path,
 		ParserVersion: replay.ParserVersion,
 		Status:        statusImported,
 	}
-	fileID, err := q.FilesInsertOne(ctx, fiop)
+	fileID, err := queries.FilesInsertOne(ctx, fileParams)
 	if err != nil {
-		return fmt.Errorf("q.FilesInsertOne(): %w", err)
+		return fmt.Errorf("queries.FilesInsertOne(): %w", err)
 	}
 
-	giop := models.GamesInsertOneParams{
+	gameParams := models.GamesInsertOneParams{
 		FileID:      fileID,
 		Amm:         replay.Game.Amm,
 		Competitive: replay.Game.Competitive,
@@ -43,13 +48,13 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 		PlayedAt:    pgtype.Timestamptz{Time: replay.Game.PlayedAt, Valid: true},
 		Version:     replay.Game.Version,
 	}
-	gameID, err := q.GamesInsertOne(ctx, giop)
+	gameID, err := queries.GamesInsertOne(ctx, gameParams)
 	if err != nil {
-		return fmt.Errorf("q.GamesInsertOne(): %w", err)
+		return fmt.Errorf("queries.GamesInsertOne(): %w", err)
 	}
 
 	for _, player := range replay.Players {
-		piop := models.PlayersInsertOneParams{
+		playerParams := models.PlayersInsertOneParams{
 			GameID:       gameID,
 			Apm:          player.Apm,
 			Clan:         player.Clan,
@@ -62,28 +67,28 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 			Result:       player.Result,
 			Team:         player.Team,
 		}
-		playerID, e := q.PlayersInsertOne(ctx, piop)
+		playerID, e := queries.PlayersInsertOne(ctx, playerParams)
 		if e != nil {
-			return fmt.Errorf("q.PlayersInsertOne(): %w", e)
+			return fmt.Errorf("queries.PlayersInsertOne(): %w", e)
 		}
 
-		mimps := make([]models.MessagesInsertManyParams, len(player.Messages))
+		messageParams := make([]models.MessagesInsertManyParams, len(player.Messages))
 		for key, message := range player.Messages {
-			mimps[key] = models.MessagesInsertManyParams{
+			messageParams[key] = models.MessagesInsertManyParams{
 				PlayerID:  playerID,
 				Recipient: message.Recipient,
 				Text:      message.Text,
 				Tick:      message.Tick,
 			}
 		}
-		_, err = q.MessagesInsertMany(ctx, mimps)
+		_, err = queries.MessagesInsertMany(ctx, messageParams)
 		if err != nil {
-			return fmt.Errorf("q.MessagesInsertMany(): %w", err)
+			return fmt.Errorf("queries.MessagesInsertMany(): %w", err)
 		}
 
-		simps := make([]models.StatsInsertManyParams, len(player.Stats))
+		statParams := make([]models.StatsInsertManyParams, len(player.Stats))
 		for key, stat := range player.Stats {
-			simps[key] = models.StatsInsertManyParams{
+			statParams[key] = models.StatsInsertManyParams{
 				PlayerID:                         playerID,
 				Tick:                             stat.Tick,
 				FoodMade:                         stat.FoodMade,
@@ -127,14 +132,14 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 				WorkersActiveCount:               stat.WorkersActiveCount,
 			}
 		}
-		_, err = q.StatsInsertMany(ctx, simps)
+		_, err = queries.StatsInsertMany(ctx, statParams)
 		if err != nil {
-			return fmt.Errorf("q.StatsInsertMany(): %w", err)
+			return fmt.Errorf("queries.StatsInsertMany(): %w", err)
 		}
 
-		uimps := make([]models.UnitsInsertManyParams, len(player.Units))
+		unitParams := make([]models.UnitsInsertManyParams, len(player.Units))
 		for key, unit := range player.Units {
-			uimps[key] = models.UnitsInsertManyParams{
+			unitParams[key] = models.UnitsInsertManyParams{
 				PlayerID: playerID,
 				Action:   unit.Action,
 				Name:     unit.Name,
@@ -143,9 +148,9 @@ func insertReplay(ctx context.Context, application *Application, path string, re
 				Y:        unit.Y,
 			}
 		}
-		_, err = q.UnitsInsertMany(ctx, uimps)
+		_, err = queries.UnitsInsertMany(ctx, unitParams)
 		if err != nil {
-			return fmt.Errorf("q.UnitsInsertMany(): %w", err)
+			return fmt.Errorf("queries.UnitsInsertMany(): %w", err)
 		}
 	}
 

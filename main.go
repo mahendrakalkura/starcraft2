@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	action := flag.String("action", "ingest", "Action: ingest, sample, serve, or statistics")
+	action := flag.String("action", "ingest", "Action: ingest, sample, or serve")
 	file := flag.String("file", "", "Replay file path (required for sample action)")
 	force := flag.Bool("force", false, "Reprocess all replay files from scratch (ingest action)")
 	flag.Parse()
@@ -32,8 +32,6 @@ func main() {
 		err = sample(ctx, *file)
 	case "serve":
 		err = serve(ctx, application)
-	case "statistics":
-		err = statistics(ctx, application)
 	default:
 		err = fmt.Errorf("unknown action %q", *action)
 	}

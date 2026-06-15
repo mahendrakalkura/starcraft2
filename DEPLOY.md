@@ -2,7 +2,7 @@
 
 How to install this on a Linux server. This guide assumes the server already has a working nginx and a valid Let's Encrypt certificate for the domain you will serve from. We only add a reverse proxy block that forwards to the app container.
 
-The app has no authentication and is wide open by design. It must never be published directly; nginx (with TLS, and any access control you add) is the only thing that should face the internet. The container binds to `127.0.0.1` so it is unreachable except through the proxy.
+The app has no authentication and is wide open by design. It must never face the internet directly; nginx (with TLS, and any access control you add) should be the only public entry point. The published port (`GO_PORT`) binds on all interfaces, so restrict it with a firewall and let nginx reach the app over the loopback address.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ Every variable in `.env` is required and there are no defaults; the app prints w
 docker compose up -d --build
 ```
 
-This starts `postgres` and `ui`. On first boot the database initializes from `sqlc/schema.sql`. The `ui` container builds the Go binary at startup and serves on `127.0.0.1:${GO_PORT}`.
+This starts `postgres` and `ui`. On first boot the database initializes from `sqlc/schema.sql`. The `ui` container builds the Go binary at startup and serves on `${GO_PORT}` (on a server, run it detached with `docker compose up -d --build`, since `make up` stays in the foreground).
 
 Import replays:
 
@@ -88,7 +88,6 @@ docker compose ps                 # status
 docker compose logs -f ui         # follow the UI logs
 docker compose pull && docker compose up -d --build   # not needed; rebuild after pulling code
 git pull && docker compose up -d --build              # deploy a new version
-docker compose run --rm cli -action statistics        # row counts per table
 ```
 
 Reset the database (drops all games and saved chats):

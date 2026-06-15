@@ -103,12 +103,12 @@ func ingest(ctx context.Context, application *Application, force bool) error {
 	for range application.Settings.GoWorkers {
 		wg.Go(func() {
 			for path := range input {
-				status, e := processFile(ctx, application, sidecar, path)
-				if e != nil {
+				status, err := processFile(ctx, application, sidecar, path)
+				if err != nil {
 					if ctx.Err() != nil {
 						return
 					}
-					status = fmt.Sprintf("error (%v)", e)
+					status = fmt.Sprintf("error (%v)", err)
 				}
 				count, _ := counts.LoadOrStore(status, &atomic.Int64{})
 				count.(*atomic.Int64).Add(1)

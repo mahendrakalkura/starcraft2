@@ -14,7 +14,7 @@ Two binaries plus Postgres.
 - `sc2json` (Rust sidecar, `sidecar/`): parses one .SC2Replay into compact JSON on stdout, built on s2protocol-rs. Stateless, one replay per invocation. Baked into the image at `/usr/local/bin/sc2json`; the Go side finds it via the `SC2JSON` env var.
 - Postgres: single account, single `public` schema, holds both the game tables and the chat tables.
 
-`main` has four actions: `ingest`, `serve`, `statistics` (row counts per table), and `sample` (pretty-print the sidecar JSON for one replay). The earlier precomputed analysis reports were removed; all analysis is now done live by the LLM in the web UI.
+`main` has three actions: `ingest`, `serve`, and `sample` (pretty-print the sidecar JSON for one replay). The earlier precomputed analysis reports were removed; all analysis is now done live by the LLM in the web UI.
 
 ## Configuration
 
@@ -112,7 +112,7 @@ There are no row caps anywhere. All rows a query returns are handed to the model
 
 ## Security
 
-There is no authentication. The application is fully public and wide open by choice. The `ui` container binds to `127.0.0.1` only, so in any real deployment it must sit behind a reverse proxy (see DEPLOY.md); the protections below only keep the database itself safe, not access control.
+There is no authentication. The application is fully public and wide open by choice. The `ui` container publishes `GO_PORT` on all interfaces, so in any real deployment it must sit behind a reverse proxy and a firewall (see DEPLOY.md); the protections below only keep the database itself safe, not access control.
 
 Enforced:
 
@@ -165,11 +165,11 @@ Three vanilla files at the repo root, no framework, no CDN, embedded into the Go
 - `index.css`: BEM-named blocks (`sidebar`, `conversation`, `chat`, `message`, `composer`) with element (`__`) and modifier (`--`) classes. Static singletons keep `id`s for JS hooks; styling is class-based.
 - `index.js`: ES module, arrow functions throughout. Loads the conversation list (newest first, delete with a confirm), starts a new chat, loads a conversation, sends an ask, shows a thinking message during the wait, and renders an error inline as the assistant reply when a question fails. No browser-local storage; the request is blocking, no streaming.
 
-The three files are linted and formatted with biome (`biome.json`, 2-space indent, recommended rules). The markdown-to-HTML step is server-side so the single JS file needs no markdown library.
+The three files are linted and formatted with biome (`biome.json`, 2-space indent, 120-column wrap, recommended rules). biome is installed in the image, so `make lint` (gofmt + go vet + biome, all in a one-off container) needs nothing on the host. The markdown-to-HTML step is server-side so the single JS file needs no markdown library.
 
 ## Dockerization
 
-The CLI and the UI are the same Go binary built from the same image: the UI is `main -action serve`, the CLI is `main -action ingest|sample|statistics`. The CLI needs the Rust sidecar to parse replays, so `sc2json` is baked into the image.
+The CLI and the UI are the same Go binary built from the same image: the UI is `main -action serve`, the CLI is `main -action ingest|sample`. The CLI needs the Rust sidecar to parse replays, so `sc2json` is baked into the image.
 
 ```
 +----------+-----------------------------------+----------------------------+
@@ -187,7 +187,7 @@ Image (multi-stage Dockerfile):
 
 ```
 Stage 1  rust:1-bookworm      -> cargo build --release  -> /sc2json (copied to /usr/local/bin/sc2json)
-Stage 2  golang:1.26-bookworm -> installs air + sqlc, warms the module cache, sets WORKDIR /sources
+Stage 2  golang:1.26-bookworm -> installs air + sqlc + biome, warms the module cache, sets WORKDIR /sources
 ```
 
 There is no slim prebuilt-binary runtime stage. The image carries the Go toolchain, and the app is built from the mounted source at container start. `entrypoint.sh` switches on `GO_ENVIRONMENT`:
@@ -201,12 +201,12 @@ Postgres init: `sqlc/schema.sql` is mounted into the db container's `/docker-ent
 
 Volumes: Postgres data is bind-mounted to `./postgres` on the host at `/var/lib/postgresql` (the layout postgres:18 expects; data lands in a version subdirectory). Delete the directory to start fresh. `GO_REPLAYS` is bind-mounted read-only on the cli service at the same path it has on the host (`source` and `target` are both `${GO_REPLAYS}`), so the path the app walks equals the path you set - there is no separate container path to reason about.
 
-The compose layer does no per-variable mapping. Each service gets `env_file: .env`, which hands the file to the container verbatim; the Go process then reads its settings from those variables (and `godotenv` loads `/sources/.env` as well, since the repo is mounted). `entrypoint.sh` reads `GO_ENVIRONMENT` from that same environment. The only `${...}` interpolation in the compose file is `GO_PORT` (the published port) and `GO_REPLAYS` (the bind-mount path), both read straight from `.env` with no defaults. Hostnames are service names (`POSTGRES_HOST=postgres`). `ui` publishes `127.0.0.1:${GO_PORT}:${GO_PORT}` so it is only reachable through a reverse proxy. `ui` and `cli` depend on `postgres` with `condition: service_healthy` (healthcheck = `pg_isready`). OpenRouter is the only outbound dependency.
+The compose layer does no per-variable mapping. Each service gets `env_file: .env`, which hands the file to the container verbatim; the Go process then reads its settings from those variables (and `godotenv` loads `/sources/.env` as well, since the repo is mounted). `entrypoint.sh` reads `GO_ENVIRONMENT` from that same environment. The only `${...}` interpolation in the compose file is `GO_PORT` (the published port) and `GO_REPLAYS` (the bind-mount path), both read straight from `.env` with no defaults. Hostnames are service names (`POSTGRES_HOST=postgres`). `ui` publishes `${GO_PORT}:${GO_PORT}` on all interfaces, so it must be firewalled and fronted by a reverse proxy. `ui` and `cli` depend on `postgres` with `condition: service_healthy` (healthcheck = `pg_isready`). OpenRouter is the only outbound dependency.
 
 ## Locked Settings
 
-- Access: no authentication, fully public, no rate limit or usage cap; `ui` binds to `127.0.0.1` and must be fronted by a reverse proxy.
-- Actions: `ingest`, `serve`, `statistics`, `sample`. No precomputed reports.
+- Access: no authentication, fully public, no rate limit or usage cap; `ui` publishes `GO_PORT` on all interfaces and must be firewalled and fronted by a reverse proxy.
+- Actions: `ingest`, `serve`, `sample`. No precomputed reports.
 - Chats: shared and public; the sidebar lists every conversation; conversation ids are BIGSERIAL; no browser-local storage.
 - Conversation title: first 50 characters of the opening prompt.
 - Containers: services named `postgres`, `ui`, `cli`; everything runs in Docker, source mounted at `/sources`.

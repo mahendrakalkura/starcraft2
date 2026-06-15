@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -114,7 +115,10 @@ func serve(ctx context.Context, application *Application) error {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = server.Shutdown(shutdown)
+		err := server.Shutdown(shutdown)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}()
 
 	fmt.Printf("listening on :%s\n", application.Settings.GoPort)
@@ -126,10 +130,10 @@ func serve(ctx context.Context, application *Application) error {
 }
 
 func handleConversations(application *Application) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := application.Queries.ConversationList(r.Context())
+	return func(writer http.ResponseWriter, request *http.Request) {
+		rows, err := application.Queries.ConversationList(request.Context())
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 
@@ -146,60 +150,69 @@ func handleConversations(application *Application) http.HandlerFunc {
 			}
 			items = append(items, item{ID: row.ID, Title: row.Title, UpdatedAt: updated})
 		}
-		writeJSON(w, http.StatusOK, items)
+		writeJSON(writer, http.StatusOK, items)
 	}
 }
 
 func handleAsk(application *Application) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		body := struct {
 			ConversationID int64  `json:"conversationId"`
 			Prompt         string `json:"prompt"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		}{}
+		err := json.NewDecoder(request.Body).Decode(&body)
+		if err != nil {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 			return
 		}
 		body.Prompt = strings.TrimSpace(body.Prompt)
 		if body.Prompt == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "prompt is required"})
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "prompt is required"})
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), requestDeadline)
+		ctx, cancel := context.WithTimeout(request.Context(), requestDeadline)
 		defer cancel()
 
 		conversationID := body.ConversationID
 		title := promptTitle(body.Prompt)
 		if conversationID == 0 {
-			conversation, err := application.Queries.ConversationInsertOne(ctx, title)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			conversation, e := application.Queries.ConversationInsertOne(ctx, title)
+			if e != nil {
+				writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": e.Error()})
 				return
 			}
 			conversationID = conversation.ID
 		} else {
-			conversation, err := application.Queries.ConversationGet(ctx, conversationID)
-			if err != nil {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "conversation not found"})
+			conversation, e := application.Queries.ConversationGet(ctx, conversationID)
+			if e != nil {
+				writeJSON(writer, http.StatusNotFound, map[string]string{"error": "conversation not found"})
 				return
 			}
 			title = conversation.Title
 		}
 
-		if err := persistTurn(ctx, application, conversationID, "user", body.Prompt, nil, ""); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		err = persistTurn(ctx, application, conversationID, "user", body.Prompt, nil, "")
+		if err != nil {
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 
 		answer, err := runAgent(ctx, application, conversationID)
 		if err != nil {
 			answer = fmt.Sprintf("**Error:** %s", err.Error())
-			_ = persistTurn(ctx, application, conversationID, "assistant", answer, nil, "")
+			e := persistTurn(ctx, application, conversationID, "assistant", answer, nil, "")
+			if e != nil {
+				fmt.Fprintln(os.Stderr, e)
+			}
 		}
-		_ = application.Queries.ConversationTouch(ctx, conversationID)
 
-		writeJSON(w, http.StatusOK, map[string]any{
+		err = application.Queries.ConversationTouch(ctx, conversationID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+
+		writeJSON(writer, http.StatusOK, map[string]any{
 			"conversationId": conversationID,
 			"title":          title,
 			"html":           renderMarkdown(answer),
@@ -208,22 +221,22 @@ func handleAsk(application *Application) http.HandlerFunc {
 }
 
 func handleConversation(application *Application) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+	return func(writer http.ResponseWriter, request *http.Request) {
+		id, err := strconv.ParseInt(request.URL.Query().Get("id"), 10, 64)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 			return
 		}
 
-		conversation, err := application.Queries.ConversationGet(r.Context(), id)
+		conversation, err := application.Queries.ConversationGet(request.Context(), id)
 		if err != nil {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "conversation not found"})
+			writeJSON(writer, http.StatusNotFound, map[string]string{"error": "conversation not found"})
 			return
 		}
 
-		turns, err := application.Queries.TurnsByConversation(r.Context(), id)
+		turns, err := application.Queries.TurnsByConversation(request.Context(), id)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 
@@ -245,7 +258,7 @@ func handleConversation(application *Application) http.HandlerFunc {
 			}
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{
+		writeJSON(writer, http.StatusOK, map[string]any{
 			"id":        conversation.ID,
 			"title":     conversation.Title,
 			"exchanges": exchanges,
@@ -254,24 +267,25 @@ func handleConversation(application *Application) http.HandlerFunc {
 }
 
 func handleDelete(application *Application) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		body := struct {
 			ID int64 `json:"id"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		}{}
+		err := json.NewDecoder(request.Body).Decode(&body)
+		if err != nil {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 			return
 		}
-		if err := application.Queries.ConversationDelete(r.Context(), body.ID); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+
+		err = application.Queries.ConversationDelete(request.Context(), body.ID)
+		if err != nil {
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		writeJSON(writer, http.StatusOK, map[string]bool{"ok": true})
 	}
 }
 
-// runAgent runs the tool-calling loop for the latest question in a conversation,
-// persisting each assistant and tool message, and returns the final markdown answer.
 func runAgent(ctx context.Context, application *Application, conversationID int64) (string, error) {
 	turns, err := application.Queries.TurnsByConversation(ctx, conversationID)
 	if err != nil {
@@ -303,7 +317,8 @@ func runAgent(ctx context.Context, application *Application, conversationID int6
 
 		message := response.Choices[0].Message
 		message.Role = "assistant"
-		if err := persistTurn(ctx, application, conversationID, "assistant", message.Content, message.ToolCalls, ""); err != nil {
+		err = persistTurn(ctx, application, conversationID, "assistant", message.Content, message.ToolCalls, "")
+		if err != nil {
 			return "", err
 		}
 		messages = append(messages, message)
@@ -314,7 +329,8 @@ func runAgent(ctx context.Context, application *Application, conversationID int6
 
 		for _, call := range message.ToolCalls {
 			result := runSQL(ctx, application.Database, toolCallSQL(call))
-			if err := persistTurn(ctx, application, conversationID, "tool", result, nil, call.ID); err != nil {
+			err = persistTurn(ctx, application, conversationID, "tool", result, nil, call.ID)
+			if err != nil {
 				return "", err
 			}
 			messages = append(messages, orMessage{Role: "tool", ToolCallID: call.ID, Content: result})
@@ -325,12 +341,11 @@ func runAgent(ctx context.Context, application *Application, conversationID int6
 	return "", fmt.Errorf("the model did not produce a final answer")
 }
 
-// runSQL executes one model-supplied query in a read-only transaction with a
-// statement timeout and returns the rows as a JSON string, or the error text so
-// the model can correct itself.
+// runSQL returns the rows as a JSON string, or the error text so the model can self-correct.
 func runSQL(ctx context.Context, pool interface {
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-}, query string) string {
+}, query string,
+) string {
 	query = strings.TrimSpace(query)
 	query = strings.TrimRight(query, ";")
 	if query == "" {
@@ -341,13 +356,19 @@ func runSQL(ctx context.Context, pool interface {
 	if err != nil {
 		return fmt.Sprintf("error: %s", err.Error())
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}()
 
-	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", int(queryTimeout/time.Millisecond))); err != nil {
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", int(queryTimeout/time.Millisecond)))
+	if err != nil {
 		return fmt.Sprintf("error: %s", err.Error())
 	}
 
-	// Let Postgres serialize each row to JSON so all column types render correctly.
+	// Postgres serializes each row to JSON so every column type renders correctly.
 	rows, err := tx.Query(ctx, fmt.Sprintf("SELECT to_jsonb(t) FROM (%s) t", query))
 	if err != nil {
 		return fmt.Sprintf("error: %s", err.Error())
@@ -356,13 +377,15 @@ func runSQL(ctx context.Context, pool interface {
 
 	out := []json.RawMessage{}
 	for rows.Next() {
-		var row []byte
-		if err := rows.Scan(&row); err != nil {
+		row := []byte{}
+		err = rows.Scan(&row)
+		if err != nil {
 			return fmt.Sprintf("error: %s", err.Error())
 		}
 		out = append(out, row)
 	}
-	if err := rows.Err(); err != nil {
+	err = rows.Err()
+	if err != nil {
 		return fmt.Sprintf("error: %s", err.Error())
 	}
 
@@ -395,10 +418,16 @@ func callOpenRouter(ctx context.Context, settings *Settings, messages []orMessag
 	if err != nil {
 		return orResponse{}, fmt.Errorf("openrouter request: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		err := response.Body.Close()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}()
 
-	var decoded orResponse
-	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+	decoded := orResponse{}
+	err = json.NewDecoder(response.Body).Decode(&decoded)
+	if err != nil {
 		return orResponse{}, fmt.Errorf("openrouter decode: %w", err)
 	}
 	if decoded.Error != nil {
@@ -411,13 +440,13 @@ func callOpenRouter(ctx context.Context, settings *Settings, messages []orMessag
 }
 
 func persistTurn(ctx context.Context, application *Application, conversationID int64, role string, content string, toolCalls []orToolCall, toolCallID string) error {
-	var encoded []byte
+	encoded := []byte(nil)
 	if len(toolCalls) > 0 {
-		var err error
-		encoded, err = json.Marshal(toolCalls)
+		marshaled, err := json.Marshal(toolCalls)
 		if err != nil {
 			return fmt.Errorf("json.Marshal(): %w", err)
 		}
+		encoded = marshaled
 	}
 
 	id := pgtype.Text{}
@@ -441,7 +470,10 @@ func persistTurn(ctx context.Context, application *Application, conversationID i
 func turnToMessage(turn models.Turn) orMessage {
 	message := orMessage{Role: turn.Role, Content: turn.Content}
 	if len(turn.ToolCalls) > 0 {
-		_ = json.Unmarshal(turn.ToolCalls, &message.ToolCalls)
+		err := json.Unmarshal(turn.ToolCalls, &message.ToolCalls)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}
 	if turn.ToolCallID.Valid {
 		message.ToolCallID = turn.ToolCallID.String
@@ -450,10 +482,13 @@ func turnToMessage(turn models.Turn) orMessage {
 }
 
 func toolCallSQL(call orToolCall) string {
-	var arguments struct {
+	arguments := struct {
 		SQL string `json:"sql"`
+	}{}
+	err := json.Unmarshal([]byte(call.Function.Arguments), &arguments)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
-	_ = json.Unmarshal([]byte(call.Function.Arguments), &arguments)
 	return arguments.SQL
 }
 
@@ -466,22 +501,24 @@ func promptTitle(prompt string) string {
 }
 
 func renderMarkdown(source string) string {
-	var buffer bytes.Buffer
-	if err := markdown.Convert([]byte(source), &buffer); err != nil {
+	buffer := bytes.Buffer{}
+	err := markdown.Convert([]byte(source), &buffer)
+	if err != nil {
 		return fmt.Sprintf("<p>%s</p>", html.EscapeString(source))
 	}
 	return buffer.String()
 }
 
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+func writeJSON(writer http.ResponseWriter, status int, value any) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(status)
+	err := json.NewEncoder(writer).Encode(value)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }
 
 func systemPrompt(settings *Settings) string {
-	schema := schemaSQL
-
 	players := "none configured"
 	if len(settings.GoPlayers) > 0 {
 		players = strings.Join(settings.GoPlayers, ", ")
@@ -510,5 +547,5 @@ Answer style:
 - Lead with the answer, then brief supporting detail. Be concise.
 - When a query returns multiple rows (per map, per year, top opponents, etc.), present them as a GitHub-flavored markdown table.
 - Always state the sample size, e.g. "over N games".
-- Never speculate beyond the rows the query returned. If a query returns no rows, say so plainly.`, maxQueries, schema, players)
+- Never speculate beyond the rows the query returned. If a query returns no rows, say so plainly.`, maxQueries, schemaSQL, players)
 }
