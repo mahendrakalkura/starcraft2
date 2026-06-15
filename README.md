@@ -41,7 +41,7 @@ All configuration lives in `.env`. The Go process loads it directly (godotenv) a
 +--------------------+----------------------------------------------------------+
 | GO_ENVIRONMENT     | development (air hot reload) or production (build once). |
 | GO_PLAYERS         | Tracked player names, comma-separated.                   |
-| GO_PORT            | Port the UI listens on and is published at (127.0.0.1).  |
+| GO_PORT            | Port the UI listens on and is published at.              |
 | GO_REPLAYS         | Replay directory, walked recursively for .SC2Replay.     |
 | GO_WORKERS         | Ingest worker count (positive integer).                  |
 | OPENROUTER_API_KEY | OpenRouter key for the web UI.                           |

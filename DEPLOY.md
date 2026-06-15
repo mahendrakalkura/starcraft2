@@ -27,7 +27,7 @@ cp .env.sample .env
 Every variable in `.env` is required and there are no defaults; the app prints which are missing and exits if any is blank. The Go process reads `.env` directly (godotenv), so the names in `.env` are the names used in the code. Fill in all of them, and in particular:
 
 - `GO_ENVIRONMENT=production` - builds the binary once at container start and runs it (no air, no file watching).
-- `GO_PORT` - port the UI listens on and is published at (stays bound to `127.0.0.1`).
+- `GO_PORT` - port the UI listens on and is published at (on all interfaces, so firewall it and let nginx reach it over loopback).
 - `GO_PLAYERS` - tracked player names.
 - `GO_REPLAYS` - absolute path to the replay directory on this server (bind-mounted at the same path in the container).
 - `OPENROUTER_API_KEY` - your key.

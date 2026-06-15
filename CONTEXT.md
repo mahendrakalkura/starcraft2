@@ -175,7 +175,7 @@ The CLI and the UI are the same Go binary built from the same image: the UI is `
 +----------+-----------------------------------+----------------------------+
 | Service  | What it runs                      | Lifecycle                  |
 +----------+-----------------------------------+----------------------------+
-| cli      | main -action ingest|sample|...    | on-demand (compose run)    |
+| cli      | main -action ingest|sample        | on-demand (compose run)    |
 | postgres | postgres:18.4                     | always up, healthchecked   |
 | ui       | main -action serve                | always up, depends on db   |
 +----------+-----------------------------------+----------------------------+
