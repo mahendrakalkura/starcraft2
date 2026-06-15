@@ -12,9 +12,6 @@ Everything runs in Docker: the Go binary, the Rust sidecar (`sc2json`), and `sql
 ## Order of operations
 
 ```bash
-git clone <repo-url> starcraft2
-cd starcraft2
-
 cp .env.sample .env     # 1. copy the sample env, then fill in every variable (see Configuration)
 make build              # 2. build the image (Go binary + Rust sidecar + tooling)
 make ingest             # 3. import replays - this starts postgres for you, then exits
