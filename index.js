@@ -1,6 +1,6 @@
 const conversations = document.getElementById("conversations");
 const messages = document.getElementById("messages");
-const promptInput = document.getElementById("prompt");
+const prompt = document.getElementById("prompt");
 const send = document.getElementById("send");
 const form = document.getElementById("composer");
 
@@ -58,7 +58,7 @@ const addMessage = (role, content, asHTML) => {
 const newChat = () => {
   currentConversationId = null;
   messages.innerHTML = "";
-  promptInput.focus();
+  prompt.focus();
   loadConversations();
 };
 
@@ -96,18 +96,18 @@ const deleteConversation = async (id) => {
   }
 };
 
-const ask = async (prompt) => {
+const ask = async (text) => {
   pending = true;
   send.disabled = true;
-  promptInput.disabled = true;
-  addMessage("user", prompt, false);
+  prompt.disabled = true;
+  addMessage("user", text, false);
   const thinking = addMessage("thinking", "Thinking...", false);
 
   try {
     const response = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId: currentConversationId || 0, prompt }),
+      body: JSON.stringify({ conversationId: currentConversationId || 0, prompt: text }),
     });
     const result = await response.json();
     thinking.remove();
@@ -125,8 +125,8 @@ const ask = async (prompt) => {
   } finally {
     pending = false;
     send.disabled = false;
-    promptInput.disabled = false;
-    promptInput.focus();
+    prompt.disabled = false;
+    prompt.focus();
   }
 };
 
@@ -136,16 +136,16 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  const prompt = promptInput.value.trim();
-  if (!prompt) {
+  const text = prompt.value.trim();
+  if (!text) {
     return;
   }
 
-  promptInput.value = "";
-  ask(prompt);
+  prompt.value = "";
+  ask(text);
 });
 
-promptInput.addEventListener("keydown", (event) => {
+prompt.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     form.requestSubmit();
