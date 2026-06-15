@@ -14,7 +14,7 @@ Everything runs in Docker: the Go binary, the Rust sidecar (`sc2json`), and `sql
 ```bash
 cp .env.sample .env     # 1. copy the sample env, then fill in every variable (see Configuration)
 make build              # 2. build the image (Go binary + Rust sidecar + tooling)
-make ingest             # 3. import replays - this starts postgres for you, then exits
+make ingest             # 3. import replays - starts postgres, imports, then shuts everything down
 make up                 # 4. start the web UI (runs in the foreground; Ctrl-C to stop)
 ```
 
@@ -22,7 +22,7 @@ Then open http://localhost:8080 and ask a question.
 
 That is the whole flow. A few things worth knowing:
 
-- **You do not have to start anything before `make ingest`.** The `cli` service depends on `postgres` with a health check, so step 3 starts postgres, waits until it is ready, imports every replay under `GO_REPLAYS`, and the one-shot container exits. postgres stays running. Re-running is cheap - already-imported paths are skipped.
+- **`make ingest` is self-contained.** It starts postgres, waits until it is ready, imports every replay under `GO_REPLAYS`, and then shuts the stack down. You do not start anything first, and nothing is left running afterward. Re-running is cheap - already-imported paths are skipped.
 - **`make up` stays in the foreground** and streams logs, so run it in its own terminal. With `GO_ENVIRONMENT=development` (the sample default) the server runs under [air](https://github.com/air-verse/air) and rebuilds automatically on any `.go`, `.sql`, or frontend change.
 - **Order is flexible.** If you want the UI running while you import, start `make up` in one terminal and `make ingest` in another; the two do not depend on each other beyond postgres.
 - The UI is published on `GO_PORT` on all interfaces and has **no authentication** - keep it behind a reverse proxy or firewall in any shared environment (see DEPLOY.md).
@@ -78,7 +78,7 @@ docker compose run --rm cli -action sample -file /path/to/replay.SC2Replay
 make build    build the image (Go binary + Rust sidecar + tooling)
 make clean    stop the stack and delete the ./postgres data directory
 make down     stop and remove the containers
-make ingest   import replays (one-shot; starts postgres if needed)
+make ingest   import replays (starts postgres, imports, then shuts down)
 make lint     run golangci-lint + biome in a one-off container
 make reset    re-apply sqlc/schema.sql to postgres (drops all data)
 make sqlc     regenerate the models/ package from sqlc/

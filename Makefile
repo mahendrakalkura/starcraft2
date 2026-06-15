@@ -12,6 +12,7 @@ down:
 
 ingest:
 	docker compose run --rm cli -action ingest
+	docker compose down
 
 lint:
 	docker compose run --rm --no-deps --entrypoint sh cli -c 'sqlc generate && golangci-lint run ./... && biome check index.css index.html index.js'
