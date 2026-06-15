@@ -96,7 +96,7 @@ The system prompt is rebuilt on every call (not stored), so schema or rule chang
 
 Only durable facts go in. Precomputed analysis findings are deliberately left out, so every answer is recomputed from live data. The prompt also tells the model to use Postgres `now()` and `current_date` for relative dates, so today's date never has to be injected.
 
-Answer style (instructed in the prompt): answer-first and concise; use markdown tables whenever a query returns multiple rows; always cite the sample size ("over N games"); never speculate beyond the rows returned; and when a query returns nothing, say so plainly.
+Answer style (instructed in the prompt): answer-first and concise; use markdown tables whenever a query returns multiple rows, with numeric columns right-aligned; list a team's players one per line rather than comma-separated; always cite the sample size ("over N games"); never speculate beyond the rows returned; and when a query returns nothing, say so plainly.
 
 ## AI Provider and Model
 
